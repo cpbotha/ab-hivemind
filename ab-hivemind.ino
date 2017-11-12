@@ -66,20 +66,31 @@ void sinelon() {
 /**
  * Per leg we two balls bouncing up and down in opposite directions.
  * 
+ * Inner and outer legs bounce at different frequencies.
+ * 
  */
 void bidi_bounce() {
   // fade out by a bit whatever we have
   fadeToBlackBy(leds, NUM_LEDS, 64);
 
-  int pos0 = beatsin16(30, 0, 10);
+  int pos0 = beatsin16(40, 0, 10);
   int pos1 = 10 - pos0;
 
-
-  for (int leg = 0; leg < NUM_LEGS; leg++) {
+  // half the frequency of the above
+  int pos2 = beatsin16(20, 0, 10);
+  int pos3 = 10 - pos2;
+  
+  // middle legs
+  for (int leg = 1; leg < 3; leg++) {
     leds[translateLegPos(leg, pos0)] += CHSV(gHue, 255, 128);
     leds[translateLegPos(leg, pos1)] += CHSV(255 - gHue, 255, 128);
   }
 
+  // outside legs
+  for (int leg = 0; leg < 4; leg+=3) {
+    leds[translateLegPos(leg, pos2)] += CHSV(gHue, 255, 128);
+    leds[translateLegPos(leg, pos3)] += CHSV(255 - gHue, 255, 128);
+  }
 
 }
 
