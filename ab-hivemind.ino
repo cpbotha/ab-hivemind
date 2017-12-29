@@ -30,6 +30,7 @@ void setup() {
   // need this for the serial console
   // speed has to match what you setup the connection for (see status line bottom right)
   Serial.begin(115200);
+  // initialise FastLED
   FastLED.addLeds<NEOPIXEL, DATA_PIN>(leds, NUM_LEDS);
 }
 
@@ -44,7 +45,7 @@ void loop() {
 
     // each of these functions is an evented effect, i.e. it does what it
     // needs to do every N milliseconds, fully timesliced.
-    
+
     bidi_bounce();
     //sinelon();
     //scanWithConfetti();
