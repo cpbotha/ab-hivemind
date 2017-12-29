@@ -14,6 +14,9 @@
 #define NUM_PER_LEG 10
 #define DATA_PIN 6
 
+// analogue!
+#define AUDIO_PIN 1
+
 //#include <XBee.h>
 
 //TxStatusResponse txStatus = TxStatusResponse();
@@ -24,33 +27,70 @@ CRGBArray<NUM_LEDS> leds;
 #define FRAMES_PER_SECOND 120
 
 void setup() { 
-  //Serial.begin(115200);
+  // need this for the serial console
+  // speed has to match what you setup the connection for (see status line bottom right)
+  Serial.begin(115200);
   FastLED.addLeds<NEOPIXEL, DATA_PIN>(leds, NUM_LEDS);
 }
 
 uint8_t gHue = 0; // rotating "base color" used by many of the patterns
 
+int min = 1024;
+int max = 0;
+
 void loop() {
-  static int wait = 5;
-  static int idx = 0;
-  static int dir = 1;
-  static int h = 0;
 
-  bidi_bounce();
-  //sinelon();
-  //scanWithConfetti();
-  //scanLRUD();
-  //scan();
-  //leds[0] = CRGB::Black;
-  //scanUD();
-  //happyScanUD();
-  //happyConfetti();
+  EVERY_N_MILLIS(8) {
 
-  FastLED.show();
-  FastLED.delay(1000 / FRAMES_PER_SECOND);
+    // each of these functions is an evented effect, i.e. it does what it
+    // needs to do every N milliseconds, fully timesliced.
+    
+    bidi_bounce();
+    //sinelon();
+    //scanWithConfetti();
+    //scanLRUD();
+    //scan();
+    //leds = CRGB::Black;
+    //scanUD();
+    //happyScanUD();
+    //happyConfetti();
+
+#ifdef MICROPHONE_TEST
+    // the robotdyn audio sensor needs 3.3V
+    // max int I get out of it is 433
+    // 
+    fadeToBlackBy(leds, NUM_LEDS, 64);
+    int aval = analogRead(AUDIO_PIN);
+    // value should be between 0 and 1023 inclusive
+    // in one session, the max was 459, in another it was 795.
+    // https://robotdyn.com/upload/PHOTO/0G-00004696==Sens-SoundDetect/DOCS/Schematic==0G-00004696==Sens-SoundDetect.pdf
+    // https://bochovj.wordpress.com/2013/06/23/sound-analysis-in-arduino/
+    // https://lowvoltage.wordpress.com/2011/05/21/lm358-mic-amp/
+    // Vcc is 3.3V; max output voltage for op-amp is Vcc - 1.5 which is 1.8V which is 1.8/5 * 1024 = 368 OR 1.8/3.3 * 1024 = 
+    int numleds = (float)aval / 500.0 * NUM_LEDS;
+    if (aval > max) max = aval;
+    if (aval < min) min = aval;
+    Serial.print(aval);
+    Serial.print("\t");
+    Serial.print(min);
+    Serial.print("\t");
+    Serial.println(max);
+    // leds(0, numleds) = CHSV(gHue, 255, 192);
+    for (CRGB& pixel : leds(0, numleds)) {
+      pixel += CHSV(gHue, 255, 192);
+    }
+#endif
+
+    FastLED.show();
+
+  }
+  
+  
+  //FastLED.delay(1000 / FRAMES_PER_SECOND);
+  //FastLED.delay(1000 / 240);
 
   // do some periodic updates
-  EVERY_N_MILLISECONDS( 20 ) { gHue++; } // slowly cycle the "base color" through the rainbow  
+  EVERY_N_MILLIS( 20 ) { gHue++; } // slowly cycle the "base color" through the rainbow  
 
   //EVERY_N_MILLISECONDS(500) { Serial.println(millis()); }
 }

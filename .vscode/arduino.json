@@ -1,5 +1,5 @@
 {
     "board": "arduino:avr:uno",
-    "port": "/dev/cu.wchusbserial1462420",
+    "port": "/dev/cu.wchusbserial146220",
     "sketch": "ab-hivemind.ino"
 }

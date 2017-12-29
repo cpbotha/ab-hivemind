@@ -11,6 +11,7 @@
                 "/Applications/Arduino.app/Contents/Java/hardware/tools/avr/avr/include",
                 "/Applications/Arduino.app/Contents/Java/hardware/arduino/avr/variants/standard",
                 "/Users/cpbotha/Dropbox/work/code/arduino/libraries/FastLED",
+                "/Users/cpbotha/Dropbox/work/code/arduino/libraries/XBee-Arduino_library",
                 "${workspaceRoot}"
             ],
             "defines": [],
