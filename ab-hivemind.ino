@@ -17,10 +17,37 @@
 // analogue!
 #define AUDIO_PIN 1
 
-//#include <XBee.h>
 
-//TxStatusResponse txStatus = TxStatusResponse();
-//XBee xbee = XBee();
+// XBEE setup ==========================================================================
+
+// need to define this so that XBee includes Arduino.h and not the old WProgram.h
+#define ARDUINO 185
+#include <XBee.h>
+
+// for the special sparkfun shield with DLINE switch, xbee is connected to lines 2,3 (not the default 0,1)
+// PRO-TIP: AltSoftSerial looks great, but on Uno has to use pins 8,9!
+// https://github.com/andrewrapp/xbee-arduino/issues/13#issuecomment-147622072
+// furthermore, in production we use hardware serial, this is only for dev and debugging
+#include <SoftwareSerial.h>
+SoftwareSerial xbee_serial(2,3);
+
+// construct XBee object to be use as API to the xbee module
+XBee xbee = XBee();
+
+// Sets the size of the payload.
+uint8_t payload[4];
+
+// Sets the command to get the Serial Low Address.
+uint8_t slCmd[] = {'S','L'};
+
+// Sets the command to exit AT mode. 
+uint8_t cnCmd[] = {'C','N'};
+
+// Initialises the AT Request and Response.
+AtCommandRequest atRequest = AtCommandRequest();
+AtCommandResponse atResponse = AtCommandResponse();
+
+// XBEE setup END ==========================================================================
 
 CRGBArray<NUM_LEDS> leds;
 //CRGB leds[NUM_LEDS];
@@ -29,7 +56,19 @@ CRGBArray<NUM_LEDS> leds;
 void setup() { 
   // need this for the serial console
   // speed has to match what you setup the connection for (see status line bottom right)
-  Serial.begin(115200);
+  Serial.begin(9600);
+
+  Serial.println("Hello, hivemind starting up down here...");
+
+  // use special SoftwareSerial object to talk to xbee on pins 2,3
+  // eventually we'll just xbee.begin(Serial);
+  xbee_serial.begin(9600);
+  xbee.begin(xbee_serial);
+
+  Serial.println("About to read SL from connected XBEE:");
+  // read the XBee's serial low address and isntall it into the payload
+  addressRead();
+
   // initialise FastLED
   FastLED.addLeds<NEOPIXEL, DATA_PIN>(leds, NUM_LEDS);
 }
@@ -40,6 +79,10 @@ int min = 1024;
 int max = 0;
 
 void loop() {
+
+  EVERY_N_MILLIS(2000) {
+    // broadcast and receive in here
+  }
 
   EVERY_N_MILLIS(8) {
 
@@ -95,6 +138,47 @@ void loop() {
 
   //EVERY_N_MILLISECONDS(500) { Serial.println(millis()); }
 }
+
+// Reads the Serial Low Address of the XBee and adds it to the payload.
+// taken from https://github.com/DBeath/rssi-aggregator
+void addressRead()
+{
+  // Sets the AT Command to Serial Low Read.
+  atRequest.setCommand(slCmd);
+  
+  // Sends the AT Command.
+  xbee.send(atRequest);
+  
+  // Waits for a response and checks for the correct response code.
+  if (xbee.readPacket(1000))
+  {  
+    if(xbee.getResponse().getApiId() == AT_COMMAND_RESPONSE)
+    {
+      xbee.getResponse().getAtCommandResponse(atResponse);
+      
+      if(atResponse.isOk())
+      {
+        // Reads the entire response and adds it to the payload.
+        for (int i = 0; i < atResponse.getValueLength(); i++)
+        {
+          payload[i] = (atResponse.getValue()[i]);
+          Serial.print(payload[i],HEX);
+          Serial.print(" ");
+        }
+      }
+      Serial.println(sizeof(payload));
+    }
+  }
+  
+  // Sets the AT Command to the Close Command.
+  atRequest.setCommand(cnCmd);
+  xbee.send(atRequest);
+  
+  // Wait two seconds. is 1 second enough?
+  delay(1000);
+  Serial.println("Done with trying to read SL.");
+}
+
 
 // from https://github.com/FastLED/FastLED/blob/master/examples/DemoReel100/DemoReel100.ino
 // added docs for moi
