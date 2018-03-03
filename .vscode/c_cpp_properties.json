@@ -38,7 +38,16 @@
             "includePath": [
                 "/usr/include",
                 "/usr/local/include",
-                "${workspaceRoot}"
+                "/home/cpbotha/opt/arduino-1.8.5/hardware/arduino/avr/cores/arduino/",
+                "/home/cpbotha/opt/arduino-1.8.5/hardware/tools/avr/lib/gcc/avr/4.9.2/include/",
+                "/home/cpbotha/opt/arduino-1.8.5/hardware/arduino/avr/variants/standard",
+                "/home/cpbotha/opt/arduino-1.8.5/hardware/tools/avr/avr/include/",
+                "/home/cpbotha/Dropbox/work/code/Arduino/libraries/",
+                "/home/cpbotha/Dropbox/work/code/Arduino/libraries/FastLED/",
+                "/home/cpbotha/Dropbox/work/code/Arduino/libraries/XBee-Arduino_library/",
+                "${workspaceRoot}",
+                "/home/cpbotha/Dropbox/work/code/Arduino/libraries/AltSoftSerial",
+                "/home/cpbotha/opt/arduino-1.8.5/hardware/arduino/avr/libraries/SoftwareSerial/src"
             ],
             "defines": [],
             "intelliSenseMode": "clang-x64",
@@ -46,9 +55,12 @@
                 "path": [
                     "/usr/include",
                     "/usr/local/include",
-                    "${workspaceRoot}"
+                    "${workspaceRoot}",
+                    "/home/cpbotha/Dropbox/work/code/Arduino/libraries/XBee-Arduino_library",
+                    "/home/cpbotha/Dropbox/work/code/Arduino/libraries/AltSoftSerial",
+                    "/home/cpbotha/opt/arduino-1.8.5/hardware/arduino/avr/libraries/SoftwareSerial/src"
                 ],
-                "limitSymbolsToIncludedHeaders": true,
+                "limitSymbolsToIncludedHeaders": false,
                 "databaseFilename": ""
             }
         },
