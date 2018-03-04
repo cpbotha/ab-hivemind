@@ -2,6 +2,7 @@
 // - I have sporadic communication with xbees connected via sparkfun dline (SoftSerial 2,3)
 // - on the hardware UART (d0,d1) I can't even get the first AT command to respond;
 //   First 4 LEDS flash to indicate that nothing came back.
+//   also after startup, I can see only the DIN light on the sparkfun shield and the TX light on the arduino flash, but never the DOUT / RX
 
 // LED feedback
 // - LED0 goes very bright right after initial serial init + 2s wait
