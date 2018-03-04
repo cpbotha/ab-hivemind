@@ -243,10 +243,10 @@ void addressRead()
           PRINT(" ");
           // in the case of SL we get for example 41 55 41 85
           // in the case of MY we get for example 0 1
-
-          // second LED means we could read MY from the xbee
-          leds[1] += CHSV(gHue, 255, 192);
         }
+
+        // second LED means we could read MY from the xbee
+        leds[1] += CHSV(gHue, 255, 192);
       }
       PRINTLN(sizeof(payload));
     }
