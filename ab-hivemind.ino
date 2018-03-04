@@ -34,18 +34,23 @@ SoftwareSerial xbee_serial(2,3);
 // construct XBee object to be use as API to the xbee module
 XBee xbee = XBee();
 
-// Sets the size of the payload.
-uint8_t payload[4];
+// Sets the size of the payload: 2 for MY but 4 for SL
+//uint8_t payload[2];
+uint8_t payload[] = { 0xDE, 0xAD, 0xBE, 0xEF };
 
 // Sets the command to get the Serial Low Address.
-uint8_t slCmd[] = {'S','L'};
-
+uint8_t FIX_PAYLOAD_SIZE_FIRST_slCmd[] = {'S','L'};
+// sets the command to get the MY address
+uint8_t myCmd[] = {'M', 'Y'};
 // Sets the command to exit AT mode. 
 uint8_t cnCmd[] = {'C','N'};
 
 // Initialises the AT Request and Response.
 AtCommandRequest atRequest = AtCommandRequest();
 AtCommandResponse atResponse = AtCommandResponse();
+
+// we'll use this to receive incoming packets
+Rx16Response rx16 = Rx16Response();
 
 // XBEE setup END ==========================================================================
 
@@ -80,8 +85,15 @@ int max = 0;
 
 void loop() {
 
-  EVERY_N_MILLIS(2000) {
-    // broadcast and receive in here
+  EVERY_N_MILLIS(500) {
+    // broadcast out MY id
+    packetSend();
+  }
+
+  EVERY_N_MILLIS(100) {
+    // and we check if there's anything incoming
+    // we have to read packets faster than they come in
+    packetRead();
   }
 
   EVERY_N_MILLIS(8) {
@@ -144,7 +156,7 @@ void loop() {
 void addressRead()
 {
   // Sets the AT Command to Serial Low Read.
-  atRequest.setCommand(slCmd);
+  atRequest.setCommand(myCmd);
   
   // Sends the AT Command.
   xbee.send(atRequest);
@@ -162,8 +174,10 @@ void addressRead()
         for (int i = 0; i < atResponse.getValueLength(); i++)
         {
           payload[i] = (atResponse.getValue()[i]);
-          Serial.print(payload[i],HEX);
+          Serial.print(payload[i], HEX);
           Serial.print(" ");
+          // in the case of SL we get for example 41 55 41 85
+          // in the case of MY we get for example 0 1
         }
       }
       Serial.println(sizeof(payload));
@@ -175,8 +189,65 @@ void addressRead()
   xbee.send(atRequest);
   
   // Wait two seconds. is 1 second enough?
-  delay(1000);
-  Serial.println("Done with trying to read SL.");
+  delay(2000);
+  Serial.println("Done with trying to read SL / MY.");
+}
+
+void packetSend()
+{ 
+  // broadcast to all xbees on our PAN
+  // see https://www.digi.com/resources/documentation/digidocs/pdfs/90001500.pdf p35
+  Tx16Request tx = Tx16Request(0xFFFF, payload, sizeof(payload));
+  xbee.send(tx);
+}
+
+// Reads any incoming packets.
+void packetRead()
+{
+  // check if there's anything available for us
+  xbee.readPacket(100);
+  if (xbee.getResponse().isAvailable())
+  {
+    // Checks if the packet is the right type.
+    if (xbee.getResponse().getApiId() == RX_16_RESPONSE)
+    {
+      // Reads the packet.
+      xbee.getResponse().getRx16Response(rx16);
+
+      // with every received packet, we get the RSSI
+      // this is in -dBm
+      Serial.print(rx16.getRssi());
+      Serial.print(" ---> remote: ");
+      Serial.print(rx16.getRemoteAddress16());
+      Serial.print(" ---> data ");
+
+      for (int i = 0; i < rx16.getDataLength(); i++)
+      {
+        //Serial.print(rx16.getData(i),HEX);
+        Serial.print(rx16.getData(i), HEX);
+      }      
+      
+      Serial.println();
+    }  
+#ifdef XBEE_REPORT_DIFF_PACKET_TYPE
+    else 
+    {
+      // we get 89 often which is TX_STATUS_RESPONSE
+      // could be what's mentioned on p39 of https://www.digi.com/resources/documentation/digidocs/pdfs/90001500.pdf
+      // "When working in API mode, a transmit request frame sent by the user is always answered with a
+      //  transmit status frame sent by the device, if the frame ID is non-zero."
+      // also see p108 where it talks about 0x89 Tx status
+      Serial.print(xbee.getResponse().getApiId(), HEX);
+      Serial.println(" :: Unexpected Api");
+    } 
+#endif
+  }
+  else if (xbee.getResponse().isError())
+  {
+    Serial.print("No Packet :: ");
+    Serial.println(xbee.getResponse().getErrorCode());
+    // we get 3 often, which is invalid start byte??! UNEXPECTED_START_BYTE
+  } 
 }
 
 
