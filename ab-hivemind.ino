@@ -1,10 +1,7 @@
 // proximity ideas:
 
-// #1
-// - each leg has two bouncing leds, where each led represents proximity to another
-// - the closer you get, the bigger the bounce.
-// - if everyone is together, we have full bounce
-// - bounce could be audio sensitive
+
+#define XBEE_DEBUG 0
 
 #include <Arduino.h>
 
@@ -24,15 +21,24 @@
 #define ARDUINO 185
 #include <XBee.h>
 
-// for the special sparkfun shield with DLINE switch, xbee is connected to lines 2,3 (not the default 0,1)
-// PRO-TIP: AltSoftSerial looks great, but on Uno has to use pins 8,9!
-// https://github.com/andrewrapp/xbee-arduino/issues/13#issuecomment-147622072
-// furthermore, in production we use hardware serial, this is only for dev and debugging
-#include <SoftwareSerial.h>
-SoftwareSerial xbee_serial(2,3);
-
 // construct XBee object to be use as API to the xbee module
 XBee xbee = XBee();
+
+#if (XBEE_DEBUG == 1)
+  // for the special sparkfun shield with DLINE switch, xbee is connected to lines 2,3 (not the default 0,1)
+  // PRO-TIP: AltSoftSerial looks great, but on Uno has to use pins 8,9!
+  // https://github.com/andrewrapp/xbee-arduino/issues/13#issuecomment-147622072
+  // furthermore, in production we use hardware serial, this is only for dev and debugging
+  #include <SoftwareSerial.h>
+#define PRINTLN(msg) Serial.println(msg)
+#define PRINT(msg) Serial.print(msg)
+#define PRINT2(msg, b) Serial.println(msg, b)
+#else
+#define PRINTLN(msg)
+#define PRINT(msg)
+#define PRINT2(msg, b)
+#endif
+
 
 // Sets the size of the payload: 2 for MY but 4 for SL
 //uint8_t payload[2];
@@ -59,10 +65,11 @@ CRGBArray<NUM_LEDS> leds;
 #define FRAMES_PER_SECOND 120
 
 void setup() { 
+
+#if (XBEE_DEBUG == 1)
   // need this for the serial console
   // speed has to match what you setup the connection for (see status line bottom right)
   Serial.begin(9600);
-
   Serial.println("Hello, hivemind starting up down here...");
 
   // use special SoftwareSerial object to talk to xbee on pins 2,3
@@ -71,6 +78,11 @@ void setup() {
   xbee.begin(xbee_serial);
 
   Serial.println("About to read SL from connected XBEE:");
+#else
+  Serial.begin(9600);
+  xbee.begin(Serial);
+#endif
+
   // read the XBee's serial low address and isntall it into the payload
   addressRead();
 
@@ -174,13 +186,13 @@ void addressRead()
         for (int i = 0; i < atResponse.getValueLength(); i++)
         {
           payload[i] = (atResponse.getValue()[i]);
-          Serial.print(payload[i], HEX);
-          Serial.print(" ");
+          PRINT2(payload[i], HEX);
+          PRINT(" ");
           // in the case of SL we get for example 41 55 41 85
           // in the case of MY we get for example 0 1
         }
       }
-      Serial.println(sizeof(payload));
+      PRINTLN(sizeof(payload));
     }
   }
   
@@ -190,7 +202,7 @@ void addressRead()
   
   // Wait two seconds. is 1 second enough?
   delay(2000);
-  Serial.println("Done with trying to read SL / MY.");
+  PRINTLN("Done with trying to read SL / MY.");
 }
 
 void packetSend()
@@ -216,18 +228,18 @@ void packetRead()
 
       // with every received packet, we get the RSSI
       // this is in -dBm
-      Serial.print(rx16.getRssi());
-      Serial.print(" ---> remote: ");
-      Serial.print(rx16.getRemoteAddress16());
-      Serial.print(" ---> data ");
+      PRINT(rx16.getRssi());
+      PRINT(" ---> remote: ");
+      PRINT(rx16.getRemoteAddress16());
+      PRINT(" ---> data ");
 
       for (int i = 0; i < rx16.getDataLength(); i++)
       {
         //Serial.print(rx16.getData(i),HEX);
-        Serial.print(rx16.getData(i), HEX);
+        PRINT2(rx16.getData(i), HEX);
       }      
       
-      Serial.println();
+      PRINTLN("");
     }  
 #ifdef XBEE_REPORT_DIFF_PACKET_TYPE
     else 
@@ -244,8 +256,8 @@ void packetRead()
   }
   else if (xbee.getResponse().isError())
   {
-    Serial.print("No Packet :: ");
-    Serial.println(xbee.getResponse().getErrorCode());
+    PRINT("No Packet :: ");
+    PRINTLN(xbee.getResponse().getErrorCode());
     // we get 3 often, which is invalid start byte??! UNEXPECTED_START_BYTE
   } 
 }
