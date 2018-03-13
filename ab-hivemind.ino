@@ -3,6 +3,9 @@
 // - on the hardware UART (d0,d1) I can't even get the first AT command to respond;
 //   First 4 LEDS flash to indicate that nothing came back.
 //   also after startup, I can see only the DIN light on the sparkfun shield and the TX light on the arduino flash, but never the DOUT / RX
+// - BOOHOO I have also disabled ATD7 CTS flow control pin on the xbee still no love.
+//   - useful http://randomstuff-ole.blogspot.co.za/2009/09/xbee-woes.html
+// - left a comment here also https://www.sparkfun.com/products/12847#comment-5a9f0ba9807fa8ad5f8b4567
 
 // LED feedback
 // - LED0 goes very bright right after initial serial init + 2s wait
@@ -28,12 +31,12 @@
 // set to 1 when you have the special SparkFun shield with xbee switchable to pins 2,3
 // and you would like to see debug output on the arduino serial monitor
 // by default it's 0, which means xbee connected to hardware uart on 0,1 and NO serial monitor :(
-#define XBEE_DEBUG 0
+#define XBEE_DEBUG 1
 
 #include <Arduino.h>
 
 #include <FastLED.h>
-#define NUM_LEDS 40
+#define NUM_LEDS 7
 #define NUM_LEGS 4
 #define NUM_PER_LEG 10
 // joystick shield with xbee uses everything 0-8
@@ -74,7 +77,8 @@ XBee xbee = XBee();
 
 // Sets the size of the payload: 2 for MY but 4 for SL
 //uint8_t payload[2];
-uint8_t payload[] = { 0xDE, 0xAD, 0xBE, 0xEF };
+// let's try 1 byte payload to see if it helps
+uint8_t payload[] = { 0xDE };
 
 // Sets the command to get the Serial Low Address.
 uint8_t FIX_PAYLOAD_SIZE_FIRST_slCmd[] = {'S','L'};
@@ -155,7 +159,7 @@ void loop() {
     packetRead();
   }
 
-  EVERY_N_MILLIS(8) {
+  EVERY_N_MILLIS(16) {
 
     // TEMP: debugging RSSI
     // fade out by a bit whatever we have
@@ -226,7 +230,7 @@ void addressRead()
   
   // Sends the AT Command.
   xbee.send(atRequest);
-  
+
   // Waits for a response and checks for the correct response code.
   if (xbee.readPacket(1000))
   {  
@@ -239,20 +243,30 @@ void addressRead()
         // Reads the entire response and adds it to the payload.
         for (int i = 0; i < atResponse.getValueLength(); i++)
         {
-          payload[i] = (atResponse.getValue()[i]);
+          
           PRINT2(payload[i], HEX);
           PRINT(" ");
           // in the case of SL we get for example 41 55 41 85
           // in the case of MY we get for example 0 1
         }
 
+        // we only store the significant byte of MY: 1, 2, 3, ...
+        payload[0] = (atResponse.getValue()[1]);
+
         // second LED means we could read MY from the xbee
         leds[1] += CHSV(gHue, 255, 192);
       }
       PRINTLN(sizeof(payload));
     }
+    else {
+      // could easily be RX_16_RESPONSE when other arduinos are transmitting
+      PRINT("Unexpected ApiId :: ");
+      PRINT2(xbee.getResponse().getApiId(), HEX);
+      PRINTLN("");
+    }
   }
   else {
+    PRINTLN("WHAT could not read MY address!");
     leds(0,3) = CHSV(128, 255, 192);
   }
   
@@ -282,7 +296,7 @@ void packetRead()
   // check if there's anything available for us;
   // rationale here is that we call packetRead() at 20% faster than maximum incoming packets (based on swarm)
   // so I don't want to busy wait here (i.e. with timeout) -- simply check if there's something.
-  xbee.readPacket(100);
+  xbee.readPacket(100); // <--- try while here, so we empty everything in the buffer
   if (xbee.getResponse().isAvailable())
   {
     // Checks if the packet is the right type.
