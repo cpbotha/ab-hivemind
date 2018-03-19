@@ -34,7 +34,35 @@
 // set to 1 when you have the special SparkFun shield with xbee switchable to pins 2,3
 // and you would like to see debug output on the arduino serial monitor
 // by default it's 0, which means xbee connected to hardware uart on 0,1 and NO serial monitor :(
-#define XBEE_DEBUG 1
+#define DEBUG_MODE 1
+#define HARDWARE_CONFIG 1
+
+#if (HARDWARE_CONFIG == 0)
+  // m0 + itead shield
+  #define SERIAL_XBEE Serial1
+  #define SERIAL_MON SerialUSB
+#elif (HARDWARE_CONFIG == 1)
+  // uno + sparkfun shield in UART mode
+
+  // in this mode, there can be no serial monitor
+  #define DEBUG_MODE 0
+  #define SERIAL_XBEE Serial
+  #define SERIAL_MON
+#elif (HARDWARE_CONFIG == 2)
+  // uno + sparkfun shield in dline mode
+  // NOT RECOMMENDED FOR PRODUCTION
+  #include <SoftwareSerial.h>
+  SoftwareSerial SERIAL_XBEE(2, 3);
+  #define SERIAL_MON Serial
+#endif
+
+// on the m0 this is Serial1 and SerialUSB
+// on the UNO this is Serial and BLANK
+// on the UNO with SoftwareSerial this is magic and Serial
+//#define SERIAL_XBEE Serial1
+//#define SERIAL_XBEE Serial
+//#define SERIAL_MON SerialUSB
+#define SERIAL_MON Serial
 
 #include <Arduino.h>
 
@@ -46,10 +74,6 @@
 // 9-13 are usually used by nRF24 module which we don't have
 #define DATA_PIN 9
 
-// analogue!
-#define AUDIO_PIN 1
-
-
 // XBEE setup ==========================================================================
 
 // need to define this so that XBee includes Arduino.h and not the old WProgram.h
@@ -59,7 +83,7 @@
 // construct XBee object to be use as API to the xbee module
 XBee xbee = XBee();
 
-#if (XBEE_DEBUG == 1)
+#if (DEBUG_MODE == 1)
   // for the special sparkfun shield with DLINE switch, xbee is connected to lines 2,3 (not the default 0,1)
   // PRO-TIP: AltSoftSerial looks great, but on Uno has to use pins 8,9!
   // https://github.com/andrewrapp/xbee-arduino/issues/13#issuecomment-147622072
@@ -68,12 +92,13 @@ XBee xbee = XBee();
   // have to instantiate here of course so it persists
   //SoftwareSerial xbee_serial(2,3);
 
-// m0: use SerialUSB for serial monitor
-#define PRINTLN(msg) SerialUSB.println(msg)
-#define PRINT(msg) SerialUSB.print(msg)
-#define PRINT2(msg, b) SerialUSB.print(msg, b)
+#define PRINTLN(msg) SERIAL_MON.println(msg)
+#define PRINTLN2(msg, b) SERIAL_MON.println(msg, b)
+#define PRINT(msg) SERIAL_MON.print(msg)
+#define PRINT2(msg, b) SERIAL_MON.print(msg, b)
 #else
 #define PRINTLN(msg)
+#define PRINTLN2(msg, b)
 #define PRINT(msg)
 #define PRINT2(msg, b)
 #endif
@@ -108,62 +133,42 @@ CRGBArray<NUM_LEDS> leds;
 // ============================================================================
 void setup() {
 
-  // M0 yeah!
-  SerialUSB.begin(9600);
-  // have to wait for the serial port to connect
-  while (!SerialUSB) {
+#if (DEBUG_MODE == 1)
+  SERIAL_MON.begin(9600);
+  // at least on the M0 we have to wait for the serial port to connect
+  while (!SERIAL_MON) {
     ;
   }
 
-  // this pin is connected to RTS into xbee: we assert it so it will buffer everything it receives
-  // we will de-assert when we want data
-  #define RTS_PIN A0
-  pinMode(RTS_PIN, OUTPUT);
-  digitalWrite(RTS_PIN, HIGH);
+  // need this for the serial console
+  // speed has to match what you setup the connection for (see status line bottom right)
+  SERIAL_MON.begin(9600);
+  SERIAL_MON.println("Hello, hivemind starting up down here...");
 
-  // should be CTS
-  #define CTS_PIN A1
-  pinMode(CTS_PIN, INPUT);
+  SERIAL_MON.print("Receive interval: ");
+  SERIAL_MON.println(XBEE_RECEIVE_INTERVAL);
 
-  //#define DTR_PIN A2
-  //pinMode(DTR_PIN, OUTPUT);
-  //digitalWrite(DTR_PIN, LOW);
+#endif
+
+  // wait for UART connected to XBEE to wake up
+  while (!SERIAL_XBEE) {
+    ;
+  }
+
+  SERIAL_XBEE.begin(9600);
+  xbee.begin(SERIAL_XBEE);
+
+  // DANGER WILL ROBINSON DANGER!
+  // on the itead shield, doing ANYTHING with a0 which is connected to RTS and sometimes to DIN
+  // will cause the xbee to hardware reset every 5 seconds
+  //#define RTS_PIN A0
+  //pinMode(RTS_PIN, OUTPUT);
+  //digitalWrite(RTS_PIN, HIGH);
 
   pinMode(LED_BUILTIN, OUTPUT);
 
   // initialise FastLED
   //FastLED.addLeds<NEOPIXEL, DATA_PIN>(leds, NUM_LEDS);
-
-#if (XBEE_DEBUG == 1)
-  // need this for the serial console
-  // speed has to match what you setup the connection for (see status line bottom right)
-  SerialUSB.begin(9600);
-  SerialUSB.println("Hello, hivemind starting up down here...");
-
-  SerialUSB.print("Receive interval: ");
-  SerialUSB.println(XBEE_RECEIVE_INTERVAL);
-
-  // use special SoftwareSerial object to talk to xbee on pins 2,3
-  // eventually we'll just xbee.begin(Serial);
-  
-  //xbee_serial.begin(9600);
-  //xbee.begin(xbee_serial);
-  // m0: this is the hardware serial port connected to the xbee
-  // see e.g. https://thinkmakehackit.wordpress.com/2015/12/06/tutorial-how-to-use-arduino-m0-pro-serial/
-  Serial5.begin(9600);
-  xbee.begin(Serial5);
-
-  SerialUSB.println("About to read SL from connected XBEE:");
-#else
-  Serial.begin(9600);
-  xbee.begin(Serial);
-#endif
-
-  // startup delay for xbee to wake-up (I'm desperate)
-  delay(1000);
-  // show that we're doing something
-  //leds[0] = CHSV(0.5, 255, 255);
-  //FastLED.show();
 
   // read the XBee's serial low address and install it into the payload
   addressRead();
@@ -182,7 +187,7 @@ void loop() {
   EVERY_N_MILLIS(XBEE_SEND_INTERVAL) {
     digitalWrite(LED_BUILTIN, HIGH);
     // broadcast out MY id
-    //packetSend();
+    packetSend();
     
   }
 
@@ -190,7 +195,7 @@ void loop() {
     digitalWrite(LED_BUILTIN, LOW);
     // and we check if there's anything incoming
     // we have to read packets faster than they come in
-    //packetRead();
+    packetRead();
     
   }
 
@@ -235,82 +240,67 @@ void loop() {
 // taken from https://github.com/DBeath/rssi-aggregator
 void addressRead()
 {
-  // set LOW so we can read some data
-  // when this is HIGH, the xbee indeed sends us nothing, not even MODEM_STATUS_RESPONSE
-  digitalWrite(RTS_PIN, LOW);
-  
-  SerialUSB.print("CTS: ");
-  SerialUSB.println(digitalRead(CTS_PIN));
-  
   // Sets the AT Command to Serial Low Read.
   atRequest.setCommand(myCmd);
 
   auto got_at_response = false;
   while (!got_at_response) {
 
-  // Sends the AT Command.
-  xbee.send(atRequest);
+    // Sends the AT Command.
+    xbee.send(atRequest);
 
-  // this seems to be VERY important! after an AT command, the xbee takes its sweet time to get back to us
-  SerialUSB.println("waiting for any data to come in");
-  while (!Serial5.available()) {
-    ;
-  }
-
-  // so here I'm definitely seeing 0x7E coming through
-  //for (int i = 0; i < 64; i++) {
-  //  SerialUSB.println(Serial5.read(), HEX);
-  //}
-  // Waits for a response and checks for the correct response code.
-  
-  if (xbee.readPacket(1000))
-  {  
-    if(xbee.getResponse().getApiId() == AT_COMMAND_RESPONSE)
-    {
-
-      got_at_response = true;
-      xbee.getResponse().getAtCommandResponse(atResponse);
-      
-      if(atResponse.isOk())
+    if (xbee.readPacket(1000))
+    {  
+      if(xbee.getResponse().getApiId() == AT_COMMAND_RESPONSE)
       {
-        // Reads the entire response and adds it to the payload.
-        for (int i = 0; i < atResponse.getValueLength(); i++)
+
+        got_at_response = true;
+        xbee.getResponse().getAtCommandResponse(atResponse);
+        
+        if(atResponse.isOk())
         {
-          payload[i] = atResponse.getValue()[i];
-          PRINT2(payload[i], HEX);
-          PRINT(" ");
-          // in the case of SL we get for example 41 55 41 85
-          // in the case of MY we get for example 0 1
+
+#if (DEBUG_MODE == 1)
+          // Reads the entire response prints to serial monitor
+          for (int i = 0; i < atResponse.getValueLength(); i++)
+          {
+            PRINT2(atResponse.getValue()[i], HEX);
+            PRINT(" ");
+            // in the case of SL we get for example 41 55 41 85
+            // in the case of MY we get for example 0 1
+          }
+
+          PRINTLN("Successfully read from xbee!");
+#endif
+
+          // we only store the significant byte of MY: 1, 2, 3, ...
+          payload[0] = (atResponse.getValue()[1]);
+
+          // second LED means we could read MY from the xbee
+          //leds[1] += CHSV(gHue, 255, 192);
         }
 
-        // we only store the significant byte of MY: 1, 2, 3, ...
-        payload[0] = (atResponse.getValue()[1]);
-
-        // second LED means we could read MY from the xbee
-        //leds[1] += CHSV(gHue, 255, 192);
       }
-      PRINTLN(sizeof(payload));
-    }
-    else if (xbee.getResponse().getApiId() == MODEM_STATUS_RESPONSE) {
-      auto msr = ModemStatusResponse();
-      xbee.getResponse().getModemStatusResponse(msr);
-      PRINT("MODEM_STATUS_RESPONSE: ");
-      PRINTLN(msr.getStatus());
-      // 0: HARDWARE_RESET
-      // for the rest see https://github.com/andrewrapp/xbee-arduino/blob/4e839822724eadc58d4626e36baed235454a0b9d/XBee.h#L129
+      else if (xbee.getResponse().getApiId() == MODEM_STATUS_RESPONSE) {
+        auto msr = ModemStatusResponse();
+        xbee.getResponse().getModemStatusResponse(msr);
+        PRINT("MODEM_STATUS_RESPONSE: ");
+        PRINTLN(msr.getStatus());
+        // 0: HARDWARE_RESET
+        // for the rest see https://github.com/andrewrapp/xbee-arduino/blob/4e839822724eadc58d4626e36baed235454a0b9d/XBee.h#L129
 
+      }
+      else {
+        // could easily be RX_16_RESPONSE when other arduinos are transmitting
+        PRINT("Unexpected ApiId :: ");
+        PRINT2(xbee.getResponse().getApiId(), HEX);
+        PRINTLN("");
+      }
     }
     else {
-      // could easily be RX_16_RESPONSE when other arduinos are transmitting
-      PRINT("Unexpected ApiId :: ");
-      PRINT2(xbee.getResponse().getApiId(), HEX);
-      PRINTLN("");
+      PRINTLN("WHAT could not read MY address!");
+      //leds(0,3) = CHSV(128, 255, 192);
     }
-  }
-  else {
-    PRINTLN("WHAT could not read MY address!");
-    //leds(0,3) = CHSV(128, 255, 192);
-  }
   }
   
   // Sets the AT Command to the Close Command.
@@ -338,65 +328,72 @@ void packetRead()
   // show that we are trying to read at least
   //leds[2] += CHSV(gHue, 255, 192);
 
-  // de-assert so we can read some data
-  digitalWrite(A0, LOW);
+  // get at least one packet vs reading until there's nothing more to read
+  auto got_my_packet = false;
+  // if we're out of range of everyone, we won't get ANY packets so we have
+  // to limit our retries
+  int num_tries = 3;
 
-  // check if there's anything available for us;
-  // rationale here is that we call packetRead() at 20% faster than maximum incoming packets (based on swarm)
-  // so I don't want to busy wait here (i.e. with timeout) -- simply check if there's something.
-  xbee.readPacket(500); // <--- try while here, so we empty everything in the buffer
-  if (xbee.getResponse().isAvailable())
-  {
-    // Checks if the packet is the right type.
-    if (xbee.getResponse().getApiId() == RX_16_RESPONSE)
-    {
-      // Reads the packet.
-      xbee.getResponse().getRx16Response(rx16);
-
-      // we have received a packet, yay.
-      //leds[4] += CHSV(gHue, 255, 192);
-
-      // with every received packet, we get the RSSI
-      // this is in -dBm
-      PRINT(rx16.getRssi());
-      PRINT(" ---> remote: ");
-      PRINT(rx16.getRemoteAddress16());
-      PRINT(" ---> data ");
-
-      for (int i = 0; i < rx16.getDataLength(); i++)
+  while (!got_my_packet && num_tries > 0) {
+    --num_tries;
+    if (xbee.readPacket(16)) {
+      // Checks if the packet is the right type.
+      if (xbee.getResponse().getApiId() == RX_16_RESPONSE)
       {
-        //Serial.print(rx16.getData(i),HEX);
-        PRINT2(rx16.getData(i), HEX);
-      }      
-      
-      PRINTLN("");
+        // this is the right packet, make sure we get out of our loop
+        got_my_packet = true;
 
-    }  
-#ifdef XBEE_REPORT_DIFF_PACKET_TYPE
-    else 
-    {
+        // Reads the packet.
+        xbee.getResponse().getRx16Response(rx16);
+
+        // we have received a packet, yay.
+        //leds[4] += CHSV(gHue, 255, 192);
+
+        // with every received packet, we get the RSSI
+        // this is in -dBm
+        PRINT(millis());
+        PRINT(" -");
+        PRINT(rx16.getRssi());
+        PRINT("dB ---> remote: ");
+        PRINT(rx16.getRemoteAddress16());
+        PRINT(" ---> data ");
+
+        for (int i = 0; i < rx16.getDataLength(); i++)
+        {
+          //Serial.print(rx16.getData(i),HEX);
+          PRINT2(rx16.getData(i), HEX);
+        }      
+        
+        PRINTLN("");
+
+      }  
+  #if (DEBUG_MODE == 1)
       // we get 89 often which is TX_STATUS_RESPONSE
       // could be what's mentioned on p39 of https://www.digi.com/resources/documentation/digidocs/pdfs/90001500.pdf
       // "When working in API mode, a transmit request frame sent by the user is always answered with a
       //  transmit status frame sent by the device, if the frame ID is non-zero."
       // also see p108 where it talks about 0x89 Tx status
-      SerialUSB.print(xbee.getResponse().getApiId(), HEX);
-      SerialUSB.println(" :: Unexpected Api");
+      // it's normal to get these (every time), so we don't report.
+      else if (xbee.getResponse().getApiId() != TX_STATUS_RESPONSE)
+      {
 
-      // with new m0 and itead shield, I am getting MODEM_STATUS_RESPONSE
-      // https://stackoverflow.com/questions/20839347/xbee-pro-s1-always-gets-response-with-api-modem-status-response-instead-of-nothi
-      // this shows how to unpack the MODEM_STATUS_RESPONSE: https://forum.arduino.cc/index.php?topic=383874.15
+        SERIAL_MON.print(xbee.getResponse().getApiId(), HEX);
+        SERIAL_MON.println(" :: Unexpected Api");
+
+        // In the bad old days, I used to get MODEM_STATUS_RESPONSE with the itead shield; that's because I should not touch RTS!
+        // https://stackoverflow.com/questions/20839347/xbee-pro-s1-always-gets-response-with-api-modem-status-response-instead-of-nothi
+        // this shows how to unpack the MODEM_STATUS_RESPONSE: https://forum.arduino.cc/index.php?topic=383874.15
+      }
+  #endif
+    } // readPacket() has returned false, which could be due to an error
+    else if (xbee.getResponse().isError()) {
+      PRINT("No Packet :: ");
+      PRINTLN(xbee.getResponse().getErrorCode());
+      // we get 3 often, which is invalid start byte??! UNEXPECTED_START_BYTE
+
+      //leds[6] += CHSV(gHue, 255, 192);
     } 
-#endif
   }
-  else if (xbee.getResponse().isError())
-  {
-    PRINT("No Packet :: ");
-    PRINTLN(xbee.getResponse().getErrorCode());
-    // we get 3 often, which is invalid start byte??! UNEXPECTED_START_BYTE
-
-    //leds[6] += CHSV(gHue, 255, 192);
-  } 
 
   //FastLED.show();
 }
