@@ -21,9 +21,9 @@
 
 // how many xbees in total in the swarm? At AB, we hope to have 8.
 // this is currently only used to calculate the receive interval
-#define XBEE_SWARM_SIZE 2
+#define XBEE_SWARM_SIZE 8
 // each xbee will broadcast to the swarm at this interval, e.g. every 2000 milliseconds
-#define XBEE_SEND_INTERVAL 200
+#define XBEE_SEND_INTERVAL 1000
 // if we have 8 xbees in our swarm (harr harr) in total it means this xbee
 // could have to process 7 incoming packets every XBEE_SEND_INTERVAL
 // we try to service the incoming buffer faster than the incoming packets with a 15% margin
@@ -41,6 +41,15 @@
   // m0 + itead shield
   #define SERIAL_XBEE Serial1
   #define SERIAL_MON SerialUSB
+  // fastled needs this
+  // https://github.com/FastLED/FastLED/issues/393
+  #define ARDUINO_SAMD_ZERO
+
+  // joystick shield with xbee uses everything 0-8
+  // 9-13 are usually used by nRF24 module which we don't have
+  // we're on itead, so pin 5 is ok
+  #define LEDS_PIN 7
+  
 #elif (HARDWARE_CONFIG == 1)
   // uno + sparkfun shield in UART mode
 
@@ -48,31 +57,24 @@
   #define DEBUG_MODE 0
   #define SERIAL_XBEE Serial
   #define SERIAL_MON
+
+  #define LEDS_PIN 7
 #elif (HARDWARE_CONFIG == 2)
   // uno + sparkfun shield in dline mode
   // NOT RECOMMENDED FOR PRODUCTION
   #include <SoftwareSerial.h>
   SoftwareSerial SERIAL_XBEE(2, 3);
   #define SERIAL_MON Serial
-#endif
 
-// on the m0 this is Serial1 and SerialUSB
-// on the UNO this is Serial and BLANK
-// on the UNO with SoftwareSerial this is magic and Serial
-//#define SERIAL_XBEE Serial1
-//#define SERIAL_XBEE Serial
-//#define SERIAL_MON SerialUSB
-#define SERIAL_MON Serial
+  #define LEDS_PIN 7
+#endif
 
 #include <Arduino.h>
 
 #include <FastLED.h>
-#define NUM_LEDS 7
-#define NUM_LEGS 4
-#define NUM_PER_LEG 10
-// joystick shield with xbee uses everything 0-8
-// 9-13 are usually used by nRF24 module which we don't have
-#define DATA_PIN 9
+#define NUM_LEDS 20
+
+CRGBArray<NUM_LEDS> leds;
 
 // XBEE setup ==========================================================================
 
@@ -125,17 +127,15 @@ Rx16Response rx16 = Rx16Response();
 
 // XBEE setup END ==========================================================================
 
-CRGBArray<NUM_LEDS> leds;
-//CRGB leds[NUM_LEDS];
-#define FRAMES_PER_SECOND 120
-
 // ============================================================================
 // ============================================================================
 void setup() {
 
 #if (DEBUG_MODE == 1)
   SERIAL_MON.begin(9600);
-  // at least on the M0 we have to wait for the serial port to connect
+  
+  // at least on the M0 we have to wait for the serial port (USB) to connect
+  // NB: this seems to block here if there's no USB, so remember to switch off DEBUG_MON before you go production
   while (!SERIAL_MON) {
     ;
   }
@@ -151,9 +151,10 @@ void setup() {
 #endif
 
   // wait for UART connected to XBEE to wake up
-  while (!SERIAL_XBEE) {
-    ;
-  }
+  // FIXME: could this be screwing with the UNO UART?
+  //while (!SERIAL_XBEE) {
+  //  ;
+  //}
 
   SERIAL_XBEE.begin(9600);
   xbee.begin(SERIAL_XBEE);
@@ -166,9 +167,10 @@ void setup() {
   //digitalWrite(RTS_PIN, HIGH);
 
   pinMode(LED_BUILTIN, OUTPUT);
+  pinMode(LED_BUILTIN, LOW);
 
   // initialise FastLED
-  //FastLED.addLeds<NEOPIXEL, DATA_PIN>(leds, NUM_LEDS);
+  FastLED.addLeds<NEOPIXEL, LEDS_PIN>(leds, NUM_LEDS);
 
   // read the XBee's serial low address and install it into the payload
   addressRead();
@@ -210,7 +212,7 @@ void loop() {
     // needs to do every N milliseconds, fully timesliced.
 
     //bidi_bounce();
-    //sinelon();
+    sinelon();
     //scanWithConfetti();
     //scanLRUD();
     //scan();
@@ -219,8 +221,9 @@ void loop() {
     //happyScanUD();
     //happyConfetti();
 
-
-    //FastLED.show();
+    // TEST: cycle ALL leds through the colours
+    //leds = CHSV(gHue, 255, 32);
+    FastLED.show();
 
   }
   
