@@ -12,16 +12,7 @@
 // - left a comment here also https://www.sparkfun.com/products/12847#comment-5a9f0ba9807fa8ad5f8b4567
 
 // YARGH, not communicating with xbee via m0 either.
-// and getting MODEM_STATUS_RESPONSE back the whole time. Not cool guys.
-
-// LED feedback
-// - LED0 goes very bright right after initial serial init + 2s wait
-// - during looping, LED0 will pulse to indicate that the board is processing
-// - LED1 will flash if we are able to read MY source address from xbee
-// - LED0-3 will flash if we are NOT able to read MY source address
-// - LED2 will flash every time we attempt to read a packet
-// - LED4 will flash if we have success
-// - LED6 will flash if error
+// and getting MODEM_STATUS_RESPONSE back the whole time. Not cool guys. (turns out that was the itead shield)
 
 // how many xbees in total in the swarm? At AB, we hope to have 8.
 // this is currently only used to calculate the receive interval
@@ -32,6 +23,8 @@
 // could have to process 7 incoming packets every XBEE_SEND_INTERVAL
 // we try to service the incoming buffer faster than the incoming packets with a 15% margin
 #define XBEE_RECEIVE_INTERVAL int(0.85 * XBEE_SEND_INTERVAL / (XBEE_SWARM_SIZE - 1))
+// if our last comms from another xbee is older than this, then it is probably out of range
+#define XBEE_LOST_WAIT 3*XBEE_SEND_INTERVAL
 
 // 8 xbees, 2 second send interval == 242ms receive interval so about 4 times per second
 
@@ -143,19 +136,19 @@ void setup() {
 #if (DEBUG_MODE == 1)
     SERIAL_MON.begin(9600);
 
-  // at least on the M0 we have to wait for the serial port (USB) to connect
-  // NB: this seems to block here if there's no USB, so remember to switch off DEBUG_MON before you go production
-  while (!SERIAL_MON) {
-    ;
-  }
+    // at least on the M0 we have to wait for the serial port (USB) to connect
+    // NB: this seems to block here if there's no USB, so remember to switch off DEBUG_MON before you go production
+    while (!SERIAL_MON) {
+        ;
+    }
 
-  // need this for the serial console
-  // speed has to match what you setup the connection for (see status line bottom right)
-  SERIAL_MON.begin(9600);
-  SERIAL_MON.println("Hello, hivemind starting up down here...");
+    // need this for the serial console
+    // speed has to match what you setup the connection for (see status line bottom right)
+    SERIAL_MON.begin(9600);
+    SERIAL_MON.println("Hello, hivemind starting up down here...");
 
-  SERIAL_MON.print("Receive interval: ");
-  SERIAL_MON.println(XBEE_RECEIVE_INTERVAL);
+    SERIAL_MON.print("Receive interval: ");
+    SERIAL_MON.println(XBEE_RECEIVE_INTERVAL);
 
 #endif
 
@@ -250,39 +243,41 @@ void loop() {
 // ============================================================================
 // Reads the Serial Low Address of the XBee and adds it to the payload.
 // taken from https://github.com/DBeath/rssi-aggregator
-void addressRead()
-{
+void addressRead() {
     // Sets the AT Command to Serial Low Read.
     atRequest.setCommand(myCmd);
 
     auto got_at_response = false;
+    int progress = 0;
     while (!got_at_response) {
 
         // Sends the AT Command.
         xbee.send(atRequest);
 
-        if (xbee.readPacket(1000))
-        {
-            if(xbee.getResponse().getApiId() == AT_COMMAND_RESPONSE)
-            {
+        // during startup, light a new LED for each try to read from xbee
+        leds = CRGB::Black;
+        if (++progress >= NUM_LEDS) progress = 0;
+        leds[progress] = CRGB::DarkOliveGreen;
+        FastLED.show();
+
+        if (xbee.readPacket(1000)) {
+            if(xbee.getResponse().getApiId() == AT_COMMAND_RESPONSE) {
 
                 got_at_response = true;
                 xbee.getResponse().getAtCommandResponse(atResponse);
 
-                if(atResponse.isOk())
-                {
+                if(atResponse.isOk()) {
 
 #if (DEBUG_MODE == 1)
                     // Reads the entire response prints to serial monitor
-          for (int i = 0; i < atResponse.getValueLength(); i++)
-          {
-            PRINT2(atResponse.getValue()[i], HEX);
-            PRINT(" ");
-            // in the case of SL we get for example 41 55 41 85
-            // in the case of MY we get for example 0 1
-          }
+                    for (int i = 0; i < atResponse.getValueLength(); i++) {
+                        PRINT2(atResponse.getValue()[i], HEX);
+                        PRINT(" ");
+                        // in the case of SL we get for example 41 55 41 85
+                        // in the case of MY we get for example 0 1
+                    }
 
-          PRINTLN("Successfully read from xbee!");
+                    PRINTLN("Successfully read from xbee!");
 #endif
 
                     // we only store the significant byte of MY: 1, 2, 3, ...
@@ -308,10 +303,10 @@ void addressRead()
                 PRINT2(xbee.getResponse().getApiId(), HEX);
                 PRINTLN("");
             }
-        }
+        } // if (xbee.readPacket(...) ...
         else {
-            PRINTLN("WHAT could not read MY address!");
-            //leds(0,3) = CHSV(128, 255, 192);
+            // error reading my own adress
+            PRINTLN("Could net yet read MY address!");
         }
     }
 
@@ -324,8 +319,7 @@ void addressRead()
     PRINTLN("Done with trying to read SL / MY.");
 }
 
-void packetSend()
-{
+void packetSend() {
     // broadcast to all xbees on our PAN
     // see https://www.digi.com/resources/documentation/digidocs/pdfs/90001500.pdf p35
     Tx16Request tx = Tx16Request(0xFFFF, payload, sizeof(payload));
@@ -335,11 +329,7 @@ void packetSend()
 #define XBEE_REPORT_DIFF_PACKET_TYPE 1
 
 // Reads any incoming packets.
-void packetRead()
-{
-    // show that we are trying to read at least
-    //leds[2] += CHSV(gHue, 255, 192);
-
+void packetRead() {
     // get at least one packet vs reading until there's nothing more to read
     auto got_my_packet = false;
     // if we're out of range of everyone, we won't get ANY packets so we have
@@ -350,8 +340,7 @@ void packetRead()
         --num_tries;
         if (xbee.readPacket(16)) {
             // Checks if the packet is the right type.
-            if (xbee.getResponse().getApiId() == RX_16_RESPONSE)
-            {
+            if (xbee.getResponse().getApiId() == RX_16_RESPONSE) {
                 // this is the right packet, make sure we get out of our loop
                 got_my_packet = true;
 
@@ -380,22 +369,21 @@ void packetRead()
 
             }
 #if (DEBUG_MODE == 1)
-            // we get 89 often which is TX_STATUS_RESPONSE
-      // could be what's mentioned on p39 of https://www.digi.com/resources/documentation/digidocs/pdfs/90001500.pdf
-      // "When working in API mode, a transmit request frame sent by the user is always answered with a
-      //  transmit status frame sent by the device, if the frame ID is non-zero."
-      // also see p108 where it talks about 0x89 Tx status
-      // it's normal to get these (every time), so we don't report.
-      else if (xbee.getResponse().getApiId() != TX_STATUS_RESPONSE)
-      {
+            else if (xbee.getResponse().getApiId() != TX_STATUS_RESPONSE) {
+                // we get 89 often which is TX_STATUS_RESPONSE
+                // could be what's mentioned on p39 of https://www.digi.com/resources/documentation/digidocs/pdfs/90001500.pdf
+                // "When working in API mode, a transmit request frame sent by the user is always answered with a
+                //  transmit status frame sent by the device, if the frame ID is non-zero."
+                // also see p108 where it talks about 0x89 Tx status
+                // it's normal to get these (every time), so we don't report.
 
-        SERIAL_MON.print(xbee.getResponse().getApiId(), HEX);
-        SERIAL_MON.println(" :: Unexpected Api");
+                SERIAL_MON.print(xbee.getResponse().getApiId(), HEX);
+                SERIAL_MON.println(" :: Unexpected Api");
 
-        // In the bad old days, I used to get MODEM_STATUS_RESPONSE with the itead shield; that's because I should not touch RTS!
-        // https://stackoverflow.com/questions/20839347/xbee-pro-s1-always-gets-response-with-api-modem-status-response-instead-of-nothi
-        // this shows how to unpack the MODEM_STATUS_RESPONSE: https://forum.arduino.cc/index.php?topic=383874.15
-      }
+                // In the bad old days, I used to get MODEM_STATUS_RESPONSE with the itead shield; that's because I should not touch RTS!
+                // https://stackoverflow.com/questions/20839347/xbee-pro-s1-always-gets-response-with-api-modem-status-response-instead-of-nothi
+                // this shows how to unpack the MODEM_STATUS_RESPONSE: https://forum.arduino.cc/index.php?topic=383874.15
+            }
 #endif
         } // readPacket() has returned false, which could be due to an error
         else if (xbee.getResponse().isError()) {
@@ -406,8 +394,6 @@ void packetRead()
             //leds[6] += CHSV(gHue, 255, 192);
         }
     }
-
-    //FastLED.show();
 }
 
 
