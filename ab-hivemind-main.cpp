@@ -1,6 +1,5 @@
-//
-// Created by Charl Botha on 2018/03/22.
-//
+// afrikaburn 2018 hivemind-tv
+// copyright 2018 Charl Botha
 
 // status on 2018-03-26
 // - problems solved by NOT touching RTS, waiting forever for xbee to respond to initial contact (takes 10s)
@@ -15,6 +14,11 @@
 // - BOOHOO I have also disabled ATD7 CTS flow control pin on the xbee still no love.
 //   - useful http://randomstuff-ole.blogspot.co.za/2009/09/xbee-woes.html
 // - left a comment here also https://www.sparkfun.com/products/12847#comment-5a9f0ba9807fa8ad5f8b4567
+
+// BEFORE YOU FLASH THIS TO THE SWARM UNITS FOR PRODUCTION:
+// 1. set the swarm size
+// 2. set the relevant HARDWARE_CONFIG
+// 3. disable DEBUG_MODE
 
 // how many xbees in total in the swarm? At AB, we hope to have 8.
 // this is currently only used to calculate the receive interval
@@ -126,6 +130,22 @@ Rx16Response rx16 = Rx16Response();
 
 // XBEE setup END ==========================================================================
 
+// proximity / hivemind data structures ====================================================
+
+// last time we saw the relevant xbee
+decltype(millis()) swarm_last_contacts[XBEE_SWARM_SIZE];
+
+typedef decltype(rx16.getRssi()) rssi_t;
+// rssi_t is uint8_t with range 0..255
+// this will initialize each element to 0, which we take to mean NO CONTACT
+// usually it's -dBm, but 0 is an impossibility (-10dBm is very close, -70dBm is far)
+rssi_t swarm_rssis[XBEE_SWARM_SIZE];
+rssi_t swarm_min = 255;
+rssi_t swarm_max = 1;
+
+
+
+// function prototypes -- eventually move these out
 void addressRead();
 void sinelon();
 void packetSend();
@@ -190,6 +210,18 @@ int max = 0;
 
 // ============================================================================
 // ============================================================================
+
+// if we haven't seen someone in more than XBEE_LOST_WAIT, we indicate that we've lost it by resetting rssi to 0
+void detect_lost_souls() {
+    for (int i = 0; i < XBEE_SWARM_SIZE; i++) {
+        if (swarm_rssis[i] != 0 && millis() - swarm_last_contacts[i] > XBEE_LOST_WAIT) {
+            swarm_rssis[i] = 0;
+            PRINT("Lost MY=");
+            PRINTLN(i+1);
+        }
+    }
+}
+
 void loop() {
 
     EVERY_N_MILLIS(XBEE_SEND_INTERVAL) {
@@ -205,30 +237,18 @@ void loop() {
         // we have to read packets faster than they come in
         packetRead();
 
+        // right after packetRead, go through the last received timestamps and then:
+        // if we haven't seen someone for a while (about 3 x broadcast period)
+        // THEY HAVE BEEN LOST PLEASE FIND THEM PLEASE.
+        detect_lost_souls();
     }
 
     EVERY_N_MILLIS(16) {
-
-        // TEMP: debugging RSSI
-        // fade out by a bit whatever we have
-        //fadeToBlackBy(leds, NUM_LEDS, 16);
-        //leds[0] += CHSV(gHue, 255, 32);
-
         // each of these functions is an evented effect, i.e. it does what it
         // needs to do every N milliseconds, fully timesliced.
 
-        //bidi_bounce();
         sinelon();
-        //scanWithConfetti();
-        //scanLRUD();
-        //scan();
-        //leds = CRGB::Black;
-        //scanUD();
-        //happyScanUD();
-        //happyConfetti();
 
-        // TEST: cycle ALL leds through the colours
-        //leds = CHSV(gHue, 255, 32);
         FastLED.show();
 
     }
@@ -351,16 +371,25 @@ void packetRead() {
                 // Reads the packet.
                 xbee.getResponse().getRx16Response(rx16);
 
-                // we have received a packet, yay.
-                //leds[4] += CHSV(gHue, 255, 192);
-
+                // first we rip out the low byte of the source address, and subtract 1 to get base-0 index
+                auto remote_idx = (uint8_t)(rx16.getRemoteAddress16() & 0xFF) - 1;
+                // store the successful contact
+                swarm_last_contacts[remote_idx] = millis();
                 // with every received packet, we get the RSSI
-                // this is in -dBm
+                // this is in -dBm, ranging from about -[20]dBm when very close to about -[70]dBm very far
+                // we get the [x] back in the getRssi() byte
+                // store it, min/max it
+                auto rssi = rx16.getRssi();
+                swarm_rssis[remote_idx] = rssi;
+                if (rssi > swarm_max) swarm_max = rssi;
+                if (rssi < swarm_min) swarm_min = rssi;
+
                 PRINT(millis());
                 PRINT(" -");
-                PRINT(rx16.getRssi());
-                PRINT("dB ---> remote: ");
-                PRINT(rx16.getRemoteAddress16());
+                PRINT(rssi);
+                PRINT("dB ---> remote idx: ");
+                // we only set the LOW byte of MY:
+                PRINT(remote_idx);
                 PRINT(" ---> data ");
 
                 for (int i = 0; i < rx16.getDataLength(); i++)
