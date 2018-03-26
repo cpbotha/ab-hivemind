@@ -8,8 +8,8 @@ add_executable(ab_hivemind ab-hivemind-main.cpp)
 set_target_properties(ab_hivemind PROPERTIES LINKER_LANGUAGE CXX)
 
 include_directories(
-        /Users/cpbotha/Dropbox/work/code/arduino/libraries/FastLED/
-        /Users/cpbotha/Dropbox/work/code/arduino/libraries/XBee-Arduino_library/
+        ${ARDUINO_SKETCHBOOK_PATH}/libraries/FastLED/
+        ${ARDUINO_SKETCHBOOK_PATH}/libraries/XBee-Arduino_library/
 )
 
 # use the following two targets for building and uploading sketches from clion.
