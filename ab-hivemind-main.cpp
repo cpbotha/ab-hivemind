@@ -2,6 +2,11 @@
 // Created by Charl Botha on 2018/03/22.
 //
 
+// status on 2018-03-26
+// - problems solved by NOT touching RTS, waiting forever for xbee to respond to initial contact (takes 10s)
+//   and finally figuring out right way to jumper up itead.
+// - we are just waiting for hardware to 1. scale up and 2. test battery duration.
+
 // status on 2018-03-04
 // - I have sporadic communication with xbees connected via sparkfun dline (SoftSerial 2,3)
 // - on the hardware UART (d0,d1) I can't even get the first AT command to respond;
@@ -10,9 +15,6 @@
 // - BOOHOO I have also disabled ATD7 CTS flow control pin on the xbee still no love.
 //   - useful http://randomstuff-ole.blogspot.co.za/2009/09/xbee-woes.html
 // - left a comment here also https://www.sparkfun.com/products/12847#comment-5a9f0ba9807fa8ad5f8b4567
-
-// YARGH, not communicating with xbee via m0 either.
-// and getting MODEM_STATUS_RESPONSE back the whole time. Not cool guys. (turns out that was the itead shield)
 
 // how many xbees in total in the swarm? At AB, we hope to have 8.
 // this is currently only used to calculate the receive interval
