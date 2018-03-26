@@ -139,8 +139,10 @@ void setup() {
     SERIAL_MON.begin(9600);
 
     // at least on the M0 we have to wait for the serial port (USB) to connect
-    // NB: this seems to block here if there's no USB, so remember to switch off DEBUG_MON before you go production
-    while (!SERIAL_MON) {
+    // let's not wait longer than 5 seconds, else arduino does not get past this bit
+    // if no monitor is connected, and we forgot to disable debug mode.
+    auto usb_start_wait = millis();
+    while (!SERIAL_MON && millis() - usb_start_wait < 5000) {
         ;
     }
 
@@ -259,7 +261,7 @@ void addressRead() {
         // during startup, light a new LED for each try to read from xbee
         leds = CRGB::Black;
         if (++progress >= NUM_LEDS) progress = 0;
-        leds[progress] = CRGB::DarkOliveGreen;
+        leds[progress] = CRGB::DarkMagenta;
         FastLED.show();
 
         if (xbee.readPacket(1000)) {
