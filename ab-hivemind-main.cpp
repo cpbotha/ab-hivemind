@@ -140,7 +140,9 @@ typedef decltype(rx16.getRssi()) rssi_t;
 // this will initialize each element to 0, which we take to mean NO CONTACT
 // usually it's -dBm, but 0 is an impossibility (-10dBm is very close, -70dBm is far)
 rssi_t swarm_rssis[XBEE_SWARM_SIZE];
+// swarm_min will be the closest that any other xbee has come to me
 rssi_t swarm_min = 255;
+// swarm_max will be the furthest that any other xbee has been from me before losing contact
 rssi_t swarm_max = 1;
 
 
@@ -175,12 +177,6 @@ void setup() {
     SERIAL_MON.println(XBEE_RECEIVE_INTERVAL);
 
 #endif
-
-    // wait for UART connected to XBEE to wake up
-    // FIXME: could this be screwing with the UNO UART?
-    //while (!SERIAL_XBEE) {
-    //  ;
-    //}
 
     SERIAL_XBEE.begin(9600);
     xbee.begin(SERIAL_XBEE);
