@@ -145,7 +145,13 @@ rssi_t swarm_min = 255;
 // swarm_max will be the furthest that any other xbee has been from me before losing contact
 rssi_t swarm_max = 1;
 
-
+// 8-class pastel1 qualitative colour scheme
+// http://colorbrewer2.org/?type=qualitative&scheme=Pastel1&n=8
+const CRGB pastel1[] = { 0xfbb4ae, 0xb3cde3, 0xccebc5, 0xdecbe4, 0xfed9a6, 0xffffcc, 0xe5d8bd, 0xfddaec };
+// 8-class dark 2
+// http://colorbrewer2.org/?type=qualitative&scheme=Dark2&n=8
+// green, brown, purple, pink, light green, mustard, khaki, grey
+const CRGB dark2[] = { 0x1b9e77, 0xd95f02, 0x7570b3, 0xe7298a, 0x66a61e, 0xe6ab02, 0xa6761d, 0x666666 };
 
 // function prototypes -- eventually move these out
 void addressRead();
@@ -192,7 +198,7 @@ void setup() {
     pinMode(LED_BUILTIN, LOW);
 
     // initialise FastLED
-    FastLED.addLeds<NEOPIXEL, LEDS_PIN>(leds, NUM_LEDS);
+    FastLED.addLeds<NEOPIXEL, LEDS_PIN>(leds, NUM_LEDS).setCorrection(TypicalLEDStrip);
 
     // read the XBee's serial low address and install it into the payload
     addressRead();
@@ -276,8 +282,10 @@ void addressRead() {
 
         // during startup, light a new LED for each try to read from xbee
         leds = CRGB::Black;
+        leds[progress] = dark2[progress % 8]; // test our palette; but modulo 8 so we wrap!
+        leds[progress] %= 50; // make 50% darker
+
         if (++progress >= NUM_LEDS) progress = 0;
-        leds[progress] = CRGB::DarkMagenta;
         FastLED.show();
 
         if (xbee.readPacket(1000)) {
@@ -437,7 +445,10 @@ void sinelon() {
     // http://fastled.io/docs/3.1/group__lib8tion.html#gaa46e5de1c4c27833359e7a97a18c839b
     // bpm, min, max
     int pos = beatsin16( 26, 0, NUM_LEDS-1 );
+
     leds[pos] += CHSV(gHue, 255, 192);
+
+
 }
 
 // christmas tree everywhere
