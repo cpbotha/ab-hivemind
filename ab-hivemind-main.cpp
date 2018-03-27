@@ -145,6 +145,9 @@ rssi_t swarm_min = 255;
 // swarm_max will be the furthest that any other xbee has been from me before losing contact
 rssi_t swarm_max = 1;
 
+float circle_pos[XBEE_SWARM_SIZE];
+float circle_speed[XBEE_SWARM_SIZE];
+
 // 8-class pastel1 qualitative colour scheme
 // http://colorbrewer2.org/?type=qualitative&scheme=Pastel1&n=8
 const CRGB pastel1[] = { 0xfbb4ae, 0xb3cde3, 0xccebc5, 0xdecbe4, 0xfed9a6, 0xffffcc, 0xe5d8bd, 0xfddaec };
@@ -224,6 +227,37 @@ void detect_lost_souls() {
     }
 }
 
+void soul_lights() {
+
+    // for each soul, we show two rotating LEDs, opposite side of the circle
+    // rotation speed + brightness is a function of closeness
+    // if lost?
+
+    // highest speed is 1/4 light per frame, i.e. 15 positions per second
+
+    // 2018-03-27: still experimenting with exact visualization
+    // todo: remove 1 light (that's me)
+    // todo: make soul light significantly dimmer if it's far away (so we have slow-moving AND dim, haha)
+    // todo: stochastic direction change, i.e. a 10% chance that a led can change direction; NO WAIT
+    //       if someone is moving closer, they move in one direction; further, they go in the other?
+
+    fadeToBlackBy(leds, NUM_LEDS, 192);
+
+    for (int i = 0; i < XBEE_SWARM_SIZE; i++) {
+        //circle_pos[i] += circle_speed[i];
+        // dummy speeds
+        //circle_pos[i] += random8() / 255.0;
+        circle_pos[i] += (i+1) / 32.0;
+
+        if (circle_pos[i] > NUM_LEDS-1) circle_pos[i]=0;
+
+        auto new_led = int(round(circle_pos[i]));
+        leds[new_led] += CRGB(dark2[i]).fadeLightBy(128);
+        //leds[new_led + NUM_LEDS / 2] += dark2[i];
+    }
+
+}
+
 void loop() {
 
     EVERY_N_MILLIS(XBEE_SEND_INTERVAL) {
@@ -249,7 +283,10 @@ void loop() {
         // each of these functions is an evented effect, i.e. it does what it
         // needs to do every N milliseconds, fully timesliced.
 
-        sinelon();
+        // sinelon is for testing: nicely coloured loop going to and fro
+        //sinelon();
+
+        soul_lights();
 
         FastLED.show();
 
