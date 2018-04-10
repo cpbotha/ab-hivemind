@@ -1,6 +1,8 @@
 // afrikaburn 2018 hivemind-tv
 // copyright 2018 Charl Botha
 
+// testing here.
+
 // status on 2018-03-26
 // - problems solved by NOT touching RTS, waiting forever for xbee to respond to initial contact (takes 10s)
 //   and finally figuring out right way to jumper up itead.
@@ -111,8 +113,8 @@ XBee xbee = XBee();
 
 // Sets the size of the payload: 2 for MY but 4 for SL
 //uint8_t payload[2];
-// let's try 1 byte payload to see if it helps
-uint8_t payload[] = { 0xDE };
+// we're only using low byte of 2-byte MY address
+uint8_t my_byte;
 
 // Sets the command to get the Serial Low Address.
 uint8_t FIX_PAYLOAD_SIZE_FIRST_slCmd[] = {'S','L'};
@@ -243,7 +245,7 @@ void soul_lights() {
 
     fadeToBlackBy(leds, NUM_LEDS, 192);
 
-    for (int i = 0; i < XBEE_SWARM_SIZE; i++) {
+    for (int i = 0; i < XBEE_SWARM_SIZE - 1; i++) {
         //circle_pos[i] += circle_speed[i];
         // dummy speeds
         //circle_pos[i] += random8() / 255.0;
@@ -346,10 +348,7 @@ void addressRead() {
 #endif
 
                     // we only store the significant byte of MY: 1, 2, 3, ...
-                    payload[0] = (atResponse.getValue()[1]);
-
-                    // second LED means we could read MY from the xbee
-                    //leds[1] += CHSV(gHue, 255, 192);
+                    my_byte = (atResponse.getValue()[1]);
                 }
 
             }
@@ -387,7 +386,7 @@ void addressRead() {
 void packetSend() {
     // broadcast to all xbees on our PAN
     // see https://www.digi.com/resources/documentation/digidocs/pdfs/90001500.pdf p35
-    Tx16Request tx = Tx16Request(0xFFFF, payload, sizeof(payload));
+    Tx16Request tx = Tx16Request(0xFFFF, &my_byte, sizeof(my_byte));
     xbee.send(tx);
 }
 
