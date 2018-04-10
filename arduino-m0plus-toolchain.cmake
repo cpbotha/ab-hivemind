@@ -2,18 +2,20 @@ SET(CMAKE_SYSTEM_NAME Generic)
 SET(CMAKE_SYSTEM_VERSION 1)
 
 # macOS
-#SET(ARDUINO_PACKAGES $ENV{HOME}/Library/Arduino15/packages)
+SET(ARDUINO_PACKAGES $ENV{HOME}/Library/Arduino15/packages)
 # Linux
-SET(ARDUINO_PACKAGES $ENV{HOME}/.arduino15/packages)
+#SET(ARDUINO_PACKAGES $ENV{HOME}/.arduino15/packages)
 
 # macOS
-#SET(ARDUINO_CMD /Applications/Arduino.app/Contents/MacOS/Arduino)
+SET(ARDUINO_CMD /Applications/Arduino.app/Contents/MacOS/Arduino)
 # Linux example:
-SET(ARDUINO_CMD $ENV{HOME}/opt/arduino-1.8.5/arduino)
+#SET(ARDUINO_CMD $ENV{HOME}/opt/arduino-1.8.5/arduino)
 
 # Wherever you've configured your sketchbook -- this is just a convenience variable which can optionally be used
 # by the CMakeLists.txt (and ab-hivemind does so)
 SET(ARDUINO_SKETCHBOOK_PATH $ENV{HOME}/Dropbox/work/code/Arduino)
+
+SET(ARDUINO_BOARD arduino:samd:mzero_bl)
 
 # specify the cross compiler
 set(CMAKE_C_COMPILER ${ARDUINO_PACKAGES}/arduino/tools/arm-none-eabi-gcc/4.8.3-2014q1/bin/arm-none-eabi-gcc)
