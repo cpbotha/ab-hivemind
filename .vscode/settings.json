@@ -1,6 +1,17 @@
 {
     "files.associations": {
         "__locale": "cpp",
-        "ios": "cpp"
+        "ios": "cpp",
+        "system_error": "cpp",
+        "bitset": "cpp",
+        "random": "cpp",
+        "future": "cpp",
+        "*.tcc": "cpp",
+        "condition_variable": "cpp",
+        "array": "cpp",
+        "rope": "cpp",
+        "slist": "cpp",
+        "initializer_list": "cpp",
+        "valarray": "cpp"
     }
 }

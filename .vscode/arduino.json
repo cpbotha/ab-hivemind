@@ -1,5 +1,5 @@
 {
-    "board": "arduino:avr:uno",
-    "port": "/dev/ttyUSB1",
+    "board": "arduino:samd:mzero_bl",
+    "port": "/dev/cu.usbmodem146121",
     "sketch": "ab-hivemind.ino"
 }

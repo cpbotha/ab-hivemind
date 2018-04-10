@@ -43,7 +43,7 @@
                 "/home/cpbotha/.arduino15/packages/arduino/tools/CMSIS-Atmel/1.1.0/CMSIS/Device/ATMEL/",
                 "/home/cpbotha/.arduino15/packages/arduino/hardware/samd/1.6.18/cores/arduino",
                 "/home/cpbotha/.arduino15/packages/arduino/hardware/samd/1.6.18/variants/arduino_mzero",
-                "/home/cpbotha/.arduino15/packages/arduino/tools/arm-none-eabi-gcc/4.8.3-2014q1/lib/gcc/arm-none-eabi/4.8.3/include/",                
+                "/home/cpbotha/.arduino15/packages/arduino/tools/arm-none-eabi-gcc/4.8.3-2014q1/lib/gcc/arm-none-eabi/4.8.3/include/",
                 "/home/cpbotha/.arduino15/packages/arduino/tools/arm-none-eabi-gcc/4.8.3-2014q1/arm-none-eabi/include",
                 "/home/cpbotha/.arduino15/packages/arduino/tools/arm-none-eabi-gcc/4.8.3-2014q1/arm-none-eabi/include/c++/4.8.3/",
                 "/home/cpbotha/.arduino15/packages/arduino/tools/arm-none-eabi-gcc/4.8.3-2014q1/arm-none-eabi/include/c++/4.8.3/arm-none-eabi",
@@ -54,7 +54,8 @@
                 "/home/cpbotha/Dropbox/work/code/Arduino/libraries/XBee-Arduino_library/",
                 "/home/cpbotha/Dropbox/work/code/Arduino/libraries/AltSoftSerial",
                 "/home/cpbotha/opt/arduino-1.8.5/hardware/arduino/avr/libraries/SoftwareSerial/src",
-                "/home/cpbotha/.arduino15/packages/arduino/hardware/samd/1.6.18/cores/arduino"
+                "/home/cpbotha/.arduino15/packages/arduino/hardware/samd/1.6.18/cores/arduino",
+                "/home/cpbotha/.arduino15/packages/arduino/hardware/avr/1.6.21/cores/arduino"
             ],
             "defines": [],
             "intelliSenseMode": "clang-x64",
@@ -66,7 +67,8 @@
                     "/home/cpbotha/Dropbox/work/code/Arduino/libraries/XBee-Arduino_library",
                     "/home/cpbotha/Dropbox/work/code/Arduino/libraries/AltSoftSerial",
                     "/home/cpbotha/opt/arduino-1.8.5/hardware/arduino/avr/libraries/SoftwareSerial/src",
-                    "/home/cpbotha/.arduino15/packages/arduino/hardware/samd/1.6.18/cores/arduino"
+                    "/home/cpbotha/.arduino15/packages/arduino/hardware/samd/1.6.18/cores/arduino",
+                    "/home/cpbotha/.arduino15/packages/arduino/hardware/avr/1.6.21/cores/arduino"
                 ],
                 "limitSymbolsToIncludedHeaders": false,
                 "databaseFilename": ""
