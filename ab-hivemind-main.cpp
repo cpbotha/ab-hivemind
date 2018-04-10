@@ -1,7 +1,26 @@
 // afrikaburn 2018 hivemind-tv
 // copyright 2018 Charl Botha
 
-// testing here.
+// quick start:
+//
+// 1. program xbee with xctu:
+//    - ID (PAN ID) = 6688 (the number of the neighbour of the beast)
+//    - MY = 1..8 (charl has 1..6, peter has 7..8)
+//    - AP (API Enable) = mode 2, API enabled with escaped character
+// 2. on itead 1.1 xbee shield, do the following:
+//    - install 3.3V jumper on the left side, with iteadstudio.com horizontally, right way up
+//    - jump DOUT - D0
+//    - jump DIN - D1
+// 3. stick xbee into shield, stick shield onto M0
+
+// 4. flash the units:
+//    a. set the swarm size
+//    b. set the relevant HARDWARE_CONFIG
+//    c. disable DEBUG_MODE
+//    d. UPLOAD
+
+// status on 2018-04-10
+// - 4 units are talking. Getting the 4th was completely routine following quick start above.
 
 // status on 2018-03-26
 // - problems solved by NOT touching RTS, waiting forever for xbee to respond to initial contact (takes 10s)
@@ -17,16 +36,12 @@
 //   - useful http://randomstuff-ole.blogspot.co.za/2009/09/xbee-woes.html
 // - left a comment here also https://www.sparkfun.com/products/12847#comment-5a9f0ba9807fa8ad5f8b4567
 
-// BEFORE YOU FLASH THIS TO THE SWARM UNITS FOR PRODUCTION:
-// 1. set the swarm size
-// 2. set the relevant HARDWARE_CONFIG
-// 3. disable DEBUG_MODE
 
 // how many xbees in total in the swarm? At AB, we hope to have 8.
 // this is currently only used to calculate the receive interval
 #define XBEE_SWARM_SIZE 8
 // each xbee will broadcast to the swarm at this interval, e.g. every 2000 milliseconds
-#define XBEE_SEND_INTERVAL 1000
+#define XBEE_SEND_INTERVAL 1500
 // if we have 8 xbees in our swarm (harr harr) in total it means this xbee
 // could have to process 7 incoming packets every XBEE_SEND_INTERVAL
 // we try to service the incoming buffer faster than the incoming packets with a 15% margin
@@ -424,8 +439,8 @@ void packetRead() {
                 if (rssi > swarm_max) swarm_max = rssi;
                 if (rssi < swarm_min) swarm_min = rssi;
 
-                PRINT(millis());
-                PRINT(" -");
+                PRINT(millis() / 1000);
+                PRINT("s -");
                 PRINT(rssi);
                 PRINT("dB ---> remote idx: ");
                 // we only set the LOW byte of MY:
