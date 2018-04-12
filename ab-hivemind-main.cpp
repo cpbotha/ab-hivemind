@@ -1,7 +1,11 @@
 // afrikaburn 2018 hivemind-tv
 // copyright 2018 Charl Botha
 
-// quick start:
+// VERY IMPORTANT:
+// construct so that LEDS 0..NUM_LEDS are in the clock-wise direction
+
+// quick start
+// ===========
 //
 // 1. program xbee with xctu:
 //    - ID (PAN ID) = 6688 (the number of the neighbour of the beast)
@@ -18,6 +22,18 @@
 //    b. set the relevant HARDWARE_CONFIG
 //    c. disable DEBUG_MODE
 //    d. UPLOAD
+
+// cpbotha c++ coding style
+// ========================
+// - 4 space indents.
+//   want to use tabs? There are other theme camps that do that. Good luck!
+// - opening brace on same line as its statement, e.g.:
+//   if (blabla) {
+//       nana();
+//   } else {
+//       nono();
+//   }
+// - CamelCase for classes, snake_case for the rest, like Python.
 
 // status on 2018-04-10
 // - 4 units are talking. Getting the 4th was completely routine following quick start above.
@@ -47,7 +63,9 @@
 // we try to service the incoming buffer faster than the incoming packets with a 15% margin
 #define XBEE_RECEIVE_INTERVAL int(0.85 * XBEE_SEND_INTERVAL / (XBEE_SWARM_SIZE - 1))
 // if our last comms from another xbee is older than this, then it is probably out of range
-#define XBEE_LOST_WAIT 3*XBEE_SEND_INTERVAL
+#define XBEE_LOST_WAIT (3*XBEE_SEND_INTERVAL)
+// if we haven't seen a friend in e.g. 2 minutes, they will fade out completely
+#define XBEE_FADE_WAIT (2*60*1000)
 
 // 8 xbees, 2 second send interval == 242ms receive interval so about 4 times per second
 
@@ -157,13 +175,20 @@ typedef decltype(rx16.getRssi()) rssi_t;
 // this will initialize each element to 0, which we take to mean NO CONTACT
 // usually it's -dBm, but 0 is an impossibility (-10dBm is very close, -70dBm is far)
 rssi_t swarm_rssis[XBEE_SWARM_SIZE];
-// swarm_min will be the closest that any other xbee has come to me
-rssi_t swarm_min = 255;
-// swarm_max will be the furthest that any other xbee has been from me before losing contact
-rssi_t swarm_max = 1;
+// swarm_rssi_min will be the closest that any other xbee has come to me
+rssi_t swarm_rssi_min = 255;
+// swarm_rssi_max will be the furthest that any other xbee has been from me before losing contact
+rssi_t swarm_rssi_max = 1;
 
+// speed is defined as led positions per frame
+// so e.g. 0.25 means 1 whole led position in 4 frames, i.e. 4 * 16ms = 64ms
+// which means a full rotation over 20 leds in 20 * 64ms == 1.28s
+#define MAX_CIRCLE_SPEED 0.25
+#define MIN_CIRCLE_SPEED 0.031
+#define CIRCLE_SPEED_RANGE (MAX_CIRCLE_SPEED - MIN_CIRCLE_SPEED)
+
+// floating point representation of NUM_LEDS; we animate with sub-pixel accuracy
 float circle_pos[XBEE_SWARM_SIZE];
-float circle_speed[XBEE_SWARM_SIZE];
 
 // 8-class pastel1 qualitative colour scheme
 // http://colorbrewer2.org/?type=qualitative&scheme=Pastel1&n=8
@@ -223,6 +248,9 @@ void setup() {
     // read the XBee's serial low address and install it into the payload
     addressRead();
 
+    // this means by default nothing will show as last-contact is too long ago.
+    for (auto&& lc : swarm_last_contacts) lc = XBEE_FADE_WAIT;
+
 }
 
 uint8_t gHue = 0; // rotating "base color" used by many of the patterns
@@ -244,33 +272,56 @@ void detect_lost_souls() {
     }
 }
 
-void soul_lights() {
+void animate_leds_by_one_frame() {
 
-    // for each soul, we show two rotating LEDs, opposite side of the circle
-    // rotation speed + brightness is a function of closeness
-    // if lost?
-
-    // highest speed is 1/4 light per frame, i.e. 15 positions per second
-
-    // 2018-03-27: still experimenting with exact visualization
-    // todo: remove 1 light (that's me)
-    // todo: make soul light significantly dimmer if it's far away (so we have slow-moving AND dim, haha)
-    // todo: stochastic direction change, i.e. a 10% chance that a led can change direction; NO WAIT
-    //       if someone is moving closer, they move in one direction; further, they go in the other?
-
+    // fade to black by 75% so the LEDs make very light trails
     fadeToBlackBy(leds, NUM_LEDS, 192);
 
-    for (int i = 0; i < XBEE_SWARM_SIZE - 1; i++) {
-        //circle_pos[i] += circle_speed[i];
-        // dummy speeds
-        //circle_pos[i] += random8() / 255.0;
-        circle_pos[i] += (i+1) / 32.0;
+    // _usually_ the range will be >= 0, except at the very beginning when 1 - 255 will wrap and our scaling will
+    // be incorrect until the first RSSI measurements come in.
+    rssi_t rssi_range = swarm_rssi_max - swarm_rssi_min;
 
-        if (circle_pos[i] > NUM_LEDS-1) circle_pos[i]=0;
+    for (int i = 0; i < XBEE_SWARM_SIZE - 1; i++) {
+
+        // we obviously ignore ourselves. Lots of philosophy in this code.
+        if (i == my_byte - 1) continue;
+
+        if (swarm_rssis[i] == 0) {
+            // LOST soul -- turn CCW depending on how long ago we saw them
+
+            // last_seen is minimum XBEE_LOST_WAIT and capped at XBEE_FADE_WAIT
+            auto last_seen = millis() - swarm_last_contacts[i];
+
+            if (last_seen < XBEE_FADE_WAIT) {
+                // 0 is when we've just lost them, 1 is if they're just about to fade away...
+                float speed_scale = 1 - (last_seen - XBEE_LOST_WAIT) / (XBEE_FADE_WAIT - XBEE_LOST_WAIT);
+                // go CCW (depends on construction)
+                circle_pos[i] -= (MIN_CIRCLE_SPEED + speed_scale * CIRCLE_SPEED_RANGE);
+                if (circle_pos[i] < 0) circle_pos[i] = NUM_LEDS - 1;
+            } else {
+                // this person has faded out, so we skip to next person.
+                continue;
+            }
+
+        } else {
+            // someone in range -- turn clockwise depending on how close
+
+            // 1 means very close, and 0 means very far
+            float speed_scale = 1 - (swarm_rssis[i] - swarm_rssi_min) / rssi_range;
+            // close friends move around the circle at top speed, far away move slowly
+            circle_pos[i] += (MIN_CIRCLE_SPEED + speed_scale * CIRCLE_SPEED_RANGE);
+
+            // if we move past the end of the circle, wrap around
+            // we could NOT wrap, and just wait for the float to wrap, but this way is more precise (in terms
+            // of floating point) and deterministic
+            if (circle_pos[i] > NUM_LEDS-1) circle_pos[i]=0;
+        }
 
         auto new_led = int(round(circle_pos[i]));
+
+        // TODO: use swarm_last_contact to change brightness: recent means BRIGHT, long ago means DIM
+        // cool thing: still in range will pulse with broadcast, out of range will fade out
         leds[new_led] += CRGB(dark2[i]).fadeLightBy(128);
-        //leds[new_led + NUM_LEDS / 2] += dark2[i];
     }
 
 }
@@ -303,7 +354,7 @@ void loop() {
         // sinelon is for testing: nicely coloured loop going to and fro
         //sinelon();
 
-        soul_lights();
+        animate_leds_by_one_frame();
 
         FastLED.show();
 
@@ -436,8 +487,8 @@ void packetRead() {
                 // store it, min/max it
                 auto rssi = rx16.getRssi();
                 swarm_rssis[remote_idx] = rssi;
-                if (rssi > swarm_max) swarm_max = rssi;
-                if (rssi < swarm_min) swarm_min = rssi;
+                if (rssi > swarm_rssi_max) swarm_rssi_max = rssi;
+                if (rssi < swarm_rssi_min) swarm_rssi_min = rssi;
 
                 PRINT(millis() / 1000);
                 PRINT("s -");
