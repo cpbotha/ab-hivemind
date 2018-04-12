@@ -280,6 +280,7 @@ void animate_leds_by_one_frame() {
     // _usually_ the range will be >= 0, except at the very beginning when 1 - 255 will wrap and our scaling will
     // be incorrect until the first RSSI measurements come in.
     rssi_t rssi_range = swarm_rssi_max - swarm_rssi_min;
+    if (rssi_range == 0) rssi_range = 1;
 
     for (int i = 0; i < XBEE_SWARM_SIZE - 1; i++) {
 
@@ -294,7 +295,13 @@ void animate_leds_by_one_frame() {
 
             if (last_seen < XBEE_FADE_WAIT) {
                 // 0 is when we've just lost them, 1 is if they're just about to fade away...
-                float speed_scale = 1 - (last_seen - XBEE_LOST_WAIT) / (XBEE_FADE_WAIT - XBEE_LOST_WAIT);
+                float speed_scale = 1.0f - (last_seen - XBEE_LOST_WAIT) / (float)(XBEE_FADE_WAIT - XBEE_LOST_WAIT);
+
+                PRINT("speed ");
+                PRINT(i);
+                PRINT(" ");
+                PRINTLN(speed_scale);
+
                 // go CCW (depends on construction)
                 circle_pos[i] -= (MIN_CIRCLE_SPEED + speed_scale * CIRCLE_SPEED_RANGE);
                 if (circle_pos[i] < 0) circle_pos[i] = NUM_LEDS - 1;
@@ -307,7 +314,7 @@ void animate_leds_by_one_frame() {
             // someone in range -- turn clockwise depending on how close
 
             // 1 means very close, and 0 means very far
-            float speed_scale = 1 - (swarm_rssis[i] - swarm_rssi_min) / rssi_range;
+            float speed_scale = 1.0f - (swarm_rssis[i] - swarm_rssi_min) / (float)rssi_range;
             // close friends move around the circle at top speed, far away move slowly
             circle_pos[i] += (MIN_CIRCLE_SPEED + speed_scale * CIRCLE_SPEED_RANGE);
 
@@ -487,8 +494,18 @@ void packetRead() {
                 // store it, min/max it
                 auto rssi = rx16.getRssi();
                 swarm_rssis[remote_idx] = rssi;
-                if (rssi > swarm_rssi_max) swarm_rssi_max = rssi;
-                if (rssi < swarm_rssi_min) swarm_rssi_min = rssi;
+                if (rssi > swarm_rssi_max) {
+                    PRINT("RSSI MAX (FAR) ");
+                    PRINTLN(rssi);
+
+                    swarm_rssi_max = rssi;
+                }
+                if (rssi < swarm_rssi_min) {
+                    PRINT("RSSI MIN (CLOSE) ");
+                    PRINTLN(rssi);
+
+                    swarm_rssi_min = rssi;
+                }
 
                 PRINT(millis() / 1000);
                 PRINT("s -");
@@ -548,7 +565,7 @@ void sinelon() {
     // bpm, min, max
     int pos = beatsin16( 26, 0, NUM_LEDS-1 );
 
-    leds[pos] += CHSV(gHue, 255, 192);
+    leds[pos] += CHSV(gHue, 255, 192); 
 
 
 }
