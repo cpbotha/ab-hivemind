@@ -119,6 +119,7 @@ CRGBArray<NUM_LEDS> leds;
 // need to define this so that XBee includes Arduino.h and not the old WProgram.h
 #define ARDUINO 185
 #include <XBee.h>
+#include <climits>
 
 // construct XBee object to be use as API to the xbee module
 XBee xbee = XBee();
@@ -144,10 +145,10 @@ XBee xbee = XBee();
 #endif
 
 
-// Sets the size of the payload: 2 for MY but 4 for SL
-//uint8_t payload[2];
-// we're only using low byte of 2-byte MY address
+// story low byte of 2-byte MY address
 uint8_t my_byte;
+// we send a specific payload so that receiving xbees don't get confused by any other packets
+uint8_t payload = 0xDE;
 
 // Sets the command to get the Serial Low Address.
 uint8_t FIX_PAYLOAD_SIZE_FIRST_slCmd[] = {'S','L'};
@@ -170,6 +171,7 @@ Rx16Response rx16 = Rx16Response();
 // last time we saw the relevant xbee
 decltype(millis()) swarm_last_contacts[XBEE_SWARM_SIZE];
 
+// uint8_t -- I'm just using decltype here because it's new and shiny. sorry.
 typedef decltype(rx16.getRssi()) rssi_t;
 // rssi_t is uint8_t with range 0..255
 // this will initialize each element to 0, which we take to mean NO CONTACT
@@ -249,7 +251,7 @@ void setup() {
     addressRead();
 
     // this means by default nothing will show as last-contact is too long ago.
-    for (auto&& lc : swarm_last_contacts) lc = XBEE_FADE_WAIT;
+    for (auto&& lc : swarm_last_contacts) lc = ULONG_MAX;
 
 }
 
@@ -280,6 +282,7 @@ void animate_leds_by_one_frame() {
     // _usually_ the range will be >= 0, except at the very beginning when 1 - 255 will wrap and our scaling will
     // be incorrect until the first RSSI measurements come in.
     rssi_t rssi_range = swarm_rssi_max - swarm_rssi_min;
+    // if the range is 0, we have to change to avoid div0
     if (rssi_range == 0) rssi_range = 1;
 
     for (int i = 0; i < XBEE_SWARM_SIZE - 1; i++) {
@@ -288,19 +291,27 @@ void animate_leds_by_one_frame() {
         if (i == my_byte - 1) continue;
 
         if (swarm_rssis[i] == 0) {
-            // LOST soul -- turn CCW depending on how long ago we saw them
+            // this is the default init situation: WE'VE NEVER SEEN THIS PERSON BEFORE
+            if (swarm_last_contacts[i] == ULONG_MAX) continue;
 
-            // last_seen is minimum XBEE_LOST_WAIT and capped at XBEE_FADE_WAIT
+            // check for exactly how long this person has been lost
+            // at this point it has to be > XBEE_LOST_WAIT, so what remains to see if it is still
+            // smaller than XBEE_FADE_WAIT (older than that, the person has been lost for too long and is faded out)
             auto last_seen = millis() - swarm_last_contacts[i];
 
             if (last_seen < XBEE_FADE_WAIT) {
-                // 0 is when we've just lost them, 1 is if they're just about to fade away...
-                float speed_scale = 1.0f - (last_seen - XBEE_LOST_WAIT) / (float)(XBEE_FADE_WAIT - XBEE_LOST_WAIT);
+                // ok, now we know this is someone we HAVE seen but then lost, but we have not yet lost them for more
+                // than XBEE_FADE_WAIT...
 
-                PRINT("speed ");
-                PRINT(i);
-                PRINT(" ");
-                PRINTLN(speed_scale);
+                // LOST soul -- turn CCW depending on how long ago we saw them
+                // 0 is when we've just lost them, 1 is if they're just about to fade away...
+                float speed_scale = 1.0f - (last_seen - XBEE_LOST_WAIT) / float(XBEE_FADE_WAIT - XBEE_LOST_WAIT);
+
+                // prints at 60fps, so only switch on if REALLY necessary to debug!
+                //PRINT("speed ");
+                //PRINT(i);
+                //PRINT(" ");
+                //PRINTLN(speed_scale);
 
                 // go CCW (depends on construction)
                 circle_pos[i] -= (MIN_CIRCLE_SPEED + speed_scale * CIRCLE_SPEED_RANGE);
@@ -459,7 +470,7 @@ void addressRead() {
 void packetSend() {
     // broadcast to all xbees on our PAN
     // see https://www.digi.com/resources/documentation/digidocs/pdfs/90001500.pdf p35
-    Tx16Request tx = Tx16Request(0xFFFF, &my_byte, sizeof(my_byte));
+    Tx16Request tx = Tx16Request(0xFFFF, &payload, sizeof(payload));
     xbee.send(tx);
 }
 
@@ -476,52 +487,55 @@ void packetRead() {
     while (!got_my_packet && num_tries > 0) {
         --num_tries;
         if (xbee.readPacket(16)) {
-            // Checks if the packet is the right type.
+            // Checks if the packet is the right type AND that it is of 1-byte length AND that it contains our special payload 0xDE
             if (xbee.getResponse().getApiId() == RX_16_RESPONSE) {
-                // this is the right packet, make sure we get out of our loop
-                got_my_packet = true;
-
-                // Reads the packet.
+                // type of the packet is correct, so read it as rx_16_response:
                 xbee.getResponse().getRx16Response(rx16);
 
-                // first we rip out the low byte of the source address, and subtract 1 to get base-0 index
-                auto remote_idx = (uint8_t)(rx16.getRemoteAddress16() & 0xFF) - 1;
-                // store the successful contact
-                swarm_last_contacts[remote_idx] = millis();
-                // with every received packet, we get the RSSI
-                // this is in -dBm, ranging from about -[20]dBm when very close to about -[70]dBm very far
-                // we get the [x] back in the getRssi() byte
-                // store it, min/max it
-                auto rssi = rx16.getRssi();
-                swarm_rssis[remote_idx] = rssi;
-                if (rssi > swarm_rssi_max) {
-                    PRINT("RSSI MAX (FAR) ");
-                    PRINTLN(rssi);
+                if (rx16.getDataLength() == 1 && rx16.getData(0) == payload) {
+                    // this is the packet we were looking for!
+                    got_my_packet = true;
 
-                    swarm_rssi_max = rssi;
+                    // first we rip out the low byte of the source address, and subtract 1 to get base-0 index
+                    auto remote_idx = (uint8_t) (rx16.getRemoteAddress16() & 0xFF) - 1;
+                    // store the successful contact
+                    swarm_last_contacts[remote_idx] = millis();
+                    // with every received packet, we get the RSSI
+                    // this is in -dBm, ranging from about -[20]dBm when very close to about -[70]dBm very far
+                    // we get the [x] back in the getRssi() byte
+                    // store it, min/max it
+                    auto rssi = rx16.getRssi();
+                    swarm_rssis[remote_idx] = rssi;
+                    if (rssi > swarm_rssi_max) {
+                        PRINT("RSSI MAX (FAR) ");
+                        PRINTLN(rssi);
+
+                        swarm_rssi_max = rssi;
+                    }
+                    if (rssi < swarm_rssi_min) {
+                        PRINT("RSSI MIN (CLOSE) ");
+                        PRINTLN(rssi);
+
+                        swarm_rssi_min = rssi;
+                    }
+
+                    PRINT(millis() / 1000);
+                    PRINT("s -");
+                    PRINT(rssi);
+                    PRINT("dB ---> remote idx: ");
+                    // we only set the LOW byte of MY:
+                    PRINT(remote_idx);
+                    PRINT(" ---> data ");
+                    PRINT2(rx16.getData(0), HEX);
+
+                    PRINTLN("");
+                } else {
+                    PRINT("unexpected payload ");
+                    PRINT2(rx16.getData(0), HEX);
+                    PRINT(" length ");
+                    PRINTLN(rx16.getDataLength());
+                    
                 }
-                if (rssi < swarm_rssi_min) {
-                    PRINT("RSSI MIN (CLOSE) ");
-                    PRINTLN(rssi);
-
-                    swarm_rssi_min = rssi;
-                }
-
-                PRINT(millis() / 1000);
-                PRINT("s -");
-                PRINT(rssi);
-                PRINT("dB ---> remote idx: ");
-                // we only set the LOW byte of MY:
-                PRINT(remote_idx);
-                PRINT(" ---> data ");
-
-                for (int i = 0; i < rx16.getDataLength(); i++)
-                {
-                    //Serial.print(rx16.getData(i),HEX);
-                    PRINT2(rx16.getData(i), HEX);
-                }
-
-                PRINTLN("");
 
             }
 #if (DEBUG_MODE == 1)
