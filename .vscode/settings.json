@@ -12,6 +12,9 @@
         "rope": "cpp",
         "slist": "cpp",
         "initializer_list": "cpp",
-        "valarray": "cpp"
+        "valarray": "cpp",
+        "fstream": "cpp",
+        "locale": "cpp",
+        "*.ipp": "cpp"
     }
 }
