@@ -150,8 +150,6 @@ uint8_t my_byte;
 // we send a specific payload so that receiving xbees don't get confused by any other packets
 uint8_t payload = 0xDE;
 
-// Sets the command to get the Serial Low Address.
-uint8_t FIX_PAYLOAD_SIZE_FIRST_slCmd[] = {'S','L'};
 // sets the command to get the MY address
 uint8_t myCmd[] = {'M', 'Y'};
 // Sets the command to exit AT mode.
@@ -167,6 +165,8 @@ Rx16Response rx16 = Rx16Response();
 // XBEE setup END ==========================================================================
 
 // proximity / hivemind data structures ====================================================
+
+unsigned long frame_num = 0;
 
 // last time we saw the relevant xbee
 decltype(millis()) swarm_last_contacts[XBEE_SWARM_SIZE];
@@ -274,10 +274,16 @@ void detect_lost_souls() {
     }
 }
 
-void animate_leds_by_one_frame() {
+// we use this effect when we're all alone
+// it's pretty, but hopefully it won't run too often, because it eats more power
+void animate_one_frame_confetti() {
+    int pos = random(NUM_LEDS);
 
-    // fade to black by 75% so the LEDs make very light trails
-    fadeToBlackBy(leds, NUM_LEDS, 192);
+    // random(256) hue is too much. gHue is much better.
+    leds[pos] += CHSV(gHue, 255, 64);
+}
+
+void animate_leds_by_one_frame() {
 
     // _usually_ the range will be >= 0, except at the very beginning when 1 - 255 will wrap and our scaling will
     // be incorrect until the first RSSI measurements come in.
@@ -285,6 +291,7 @@ void animate_leds_by_one_frame() {
     // if the range is 0, we have to change to avoid div0
     if (rssi_range == 0) rssi_range = 1;
 
+    bool alone = true;
     for (int i = 0; i < XBEE_SWARM_SIZE - 1; i++) {
 
         // we obviously ignore ourselves. Lots of philosophy in this code.
@@ -335,11 +342,31 @@ void animate_leds_by_one_frame() {
             if (circle_pos[i] > NUM_LEDS-1) circle_pos[i]=0;
         }
 
+        // we're going to paint at least one led, so we're NOT alone
+        if (alone) {
+            // the first time we switch to NOT alone, we apply the NOT alone fading
+            // fade to black by 75% so the LEDs make very light trails
+            fadeToBlackBy(leds, NUM_LEDS, 192);
+            alone = false;
+        }
+
         auto new_led = int(round(circle_pos[i]));
 
         // TODO: use swarm_last_contact to change brightness: recent means BRIGHT, long ago means DIM
         // cool thing: still in range will pulse with broadcast, out of range will fade out
         leds[new_led] += CRGB(dark2[i]).fadeLightBy(128);
+
+    }
+
+    if (alone) {
+        // ok, we're alone, so we do confetti
+
+        // we only apply fadeout + effect every 4th frame for calmer effect
+        if (frame_num % 4 == 0) {
+            // slower fade out
+            fadeToBlackBy(leds, NUM_LEDS, 16);
+            animate_one_frame_confetti();
+        }
     }
 
 }
@@ -375,6 +402,8 @@ void loop() {
         animate_leds_by_one_frame();
 
         FastLED.show();
+
+        frame_num++;
 
     }
 
@@ -582,19 +611,6 @@ void sinelon() {
     leds[pos] += CHSV(gHue, 255, 192); 
 
 
-}
-
-// christmas tree everywhere
-// are you very happy to see me?
-void happyConfetti() {
-    fadeToBlackBy(leds, NUM_LEDS, 10);
-
-    int leg = beatsin8(60, 0, 3);
-
-    int pos = random(NUM_LEDS);
-
-    // random(256) hue is too much. gHue is much better.
-    leds[pos] += CHSV(gHue, 255, 64);
 }
 
 // scan with full leg on
