@@ -360,10 +360,10 @@ void animate_leds_by_one_frame() {
 
         // we're going to paint at least one led, so we're NOT alone
         if (alone) {
+            alone = false;
             // the first time we switch to NOT alone, we apply the NOT alone fading
             // fade to black by 75% so the LEDs make very light trails
-            fadeToBlackBy(leds, NUM_LEDS, 192);
-            alone = false;
+            fadeToBlackBy(leds, NUM_LEDS, 128);
         }
 
         auto new_led = int(round(circle_pos[i]));
