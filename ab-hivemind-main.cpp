@@ -292,10 +292,15 @@ void animate_leds_by_one_frame() {
     if (rssi_range == 0) rssi_range = 1;
 
     bool alone = true;
+    uint8_t darker;
+    CRGB my_colour;
     for (int i = 0; i < XBEE_SWARM_SIZE - 1; i++) {
 
         // we obviously ignore ourselves. Lots of philosophy in this code.
         if (i == my_byte - 1) continue;
+
+        // we're going to need this for 1. checking faded status and 2. modulating brightness based on last contact
+        auto last_seen = millis() - swarm_last_contacts[i];
 
         if (swarm_rssis[i] == 0) {
             // this is the default init situation: WE'VE NEVER SEEN THIS PERSON BEFORE
@@ -304,8 +309,6 @@ void animate_leds_by_one_frame() {
             // check for exactly how long this person has been lost
             // at this point it has to be > XBEE_LOST_WAIT, so what remains to see if it is still
             // smaller than XBEE_FADE_WAIT (older than that, the person has been lost for too long and is faded out)
-            auto last_seen = millis() - swarm_last_contacts[i];
-
             if (last_seen < XBEE_FADE_WAIT) {
                 // ok, now we know this is someone we HAVE seen but then lost, but we have not yet lost them for more
                 // than XBEE_FADE_WAIT...
@@ -323,6 +326,11 @@ void animate_leds_by_one_frame() {
                 // go CCW (depends on construction)
                 circle_pos[i] -= (MIN_CIRCLE_SPEED + speed_scale * CIRCLE_SPEED_RANGE);
                 if (circle_pos[i] < 0) circle_pos[i] = NUM_LEDS - 1;
+
+                // in the case of lost soul, calculate how much darker LED should be
+                // last_seen can be 0, i.e. we've JUST seen this person, up to XBEE_FADE_WAIT: they're gooooneeee.
+                darker = uint8_t(last_seen / float(XBEE_FADE_WAIT) * 127.0);
+                my_colour = CRGB(dark2[i]).fadeLightBy(uint8_t(128) + darker);
             } else {
                 // this person has faded out, so we skip to next person.
                 continue;
@@ -340,6 +348,14 @@ void animate_leds_by_one_frame() {
             // we could NOT wrap, and just wait for the float to wrap, but this way is more precise (in terms
             // of floating point) and deterministic
             if (circle_pos[i] > NUM_LEDS-1) circle_pos[i]=0;
+
+            // in the case of someone in range, calculate darker so LED does pulsating thing between broadcasts
+            // last_seen is minimum 0, maximum XBEE_LOST_WAIT
+            // this was not nicely visible
+            //darker = uint8_t(last_seen / float(XBEE_LOST_WAIT) * 127.0);
+            // switching light OFF worked better, but is weird
+            //darker = uint8_t(last_seen > 100 ? 0 : 127);
+            my_colour = last_seen > 64 ? CRGB(dark2[i]).fadeLightBy(128) : CRGB::ForestGreen;
         }
 
         // we're going to paint at least one led, so we're NOT alone
@@ -352,9 +368,10 @@ void animate_leds_by_one_frame() {
 
         auto new_led = int(round(circle_pos[i]));
 
-        // TODO: use swarm_last_contact to change brightness: recent means BRIGHT, long ago means DIM
         // cool thing: still in range will pulse with broadcast, out of range will fade out
-        leds[new_led] += CRGB(dark2[i]).fadeLightBy(128);
+        // minus 128 is brightest
+        // minus 255 is darkest
+        leds[new_led] += my_colour;
 
     }
 
