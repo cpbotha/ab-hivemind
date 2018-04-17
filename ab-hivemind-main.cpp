@@ -355,7 +355,7 @@ void animate_leds_by_one_frame() {
             //darker = uint8_t(last_seen / float(XBEE_LOST_WAIT) * 127.0);
             // switching light OFF worked better, but is weird
             //darker = uint8_t(last_seen > 100 ? 0 : 127);
-            my_colour = last_seen > 64 ? CRGB(dark2[i]).fadeLightBy(128) : CRGB::ForestGreen;
+            my_colour = last_seen > 150 ? CRGB(dark2[i]).fadeLightBy(128) : CRGB::ForestGreen;
         }
 
         // we're going to paint at least one led, so we're NOT alone
